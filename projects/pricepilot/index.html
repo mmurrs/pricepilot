@@ -3,791 +3,644 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PricePilot — Cheapest-price agent API</title>
-  <meta name="description" content="Name a product, get the cheapest verified buy link across retailers. Pay-per-call agent API. $0.05 per check via x402 or MPP.">
-  <meta property="og:title" content="PricePilot">
-  <meta property="og:description" content="Name a product, get the cheapest verified buy link across retailers. $0.05 per check via x402 or MPP.">
+  <title>PricePilot — Agent receipt for the cheapest price</title>
+  <meta name="description" content="A pay-per-call price agent. Name a product, get a printed receipt with the cheapest verified buy link. $0.05 per check via x402 or MPP.">
+  <meta property="og:title" content="PricePilot — Agent receipt for the cheapest price">
+  <meta property="og:description" content="A pay-per-call price agent. Ask for the cheapest, get a printed receipt back. $0.05 per check via x402 or MPP.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <style>
     :root {
-      --ink: #1a2b1f;
-      --ink-soft: #4a5d4f;
-      --muted: #7a8c80;
-      --cream: #f6f4ec;
-      --cream-soft: #fbfaf4;
-      --paper: #ffffff;
-      --green: #1d6f42;
-      --green-deep: #0d5c40;
-      --green-soft: #e8f1ea;
-      --savings: #00a86b;
-      --coral: #ff6b4a;
-      --gold: #d4a017;
-      --line: #e3e0d2;
-      --line-soft: #ecead8;
+      --paper: #f3eddc;
+      --paper-deep: #ece4cf;
+      --ink: #1a1612;
+      --ink-soft: #4a4238;
+      --muted: #8a8175;
+      --line: #2a221a;
+      --line-soft: #c7bca0;
+      --stamp: #c5341e;
+      --stamp-soft: #e8c8c2;
+      --green: #2d6b3a;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { background: var(--paper); }
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
       color: var(--ink);
-      background: var(--cream);
-      line-height: 1.6;
-      font-size: 0.9375rem;
+      line-height: 1.55;
+      font-size: 0.875rem;
+      font-weight: 400;
       -webkit-font-smoothing: antialiased;
       min-height: 100vh;
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(26, 22, 18, 0.04) 1px, transparent 0);
+      background-size: 4px 4px;
     }
 
-    nav {
-      background: var(--paper);
-      border-bottom: 1px solid var(--line);
-      height: 3.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 2rem;
-      position: sticky;
-      top: 0;
-      z-index: 100;
+    .receipt {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+      position: relative;
     }
-    nav .logo {
+
+    .paper {
+      background: var(--paper);
+      padding: 2rem 0;
+      border-top: 2px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      position: relative;
+    }
+    .paper::before, .paper::after {
+      content: "";
+      position: absolute;
+      left: -1px; right: -1px;
+      height: 1px;
+      background: var(--ink);
+    }
+    .paper::before { top: 4px; }
+    .paper::after { bottom: 4px; }
+
+    .masthead {
+      text-align: center;
+      padding: 0 1.25rem 1.25rem;
+      border-bottom: 1px dashed var(--line);
+      margin-bottom: 1.5rem;
+    }
+    .masthead .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.625rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 1rem;
+    }
+    .masthead .brand {
+      font-family: 'IBM Plex Serif', Georgia, serif;
       font-weight: 700;
-      font-size: 0.9375rem;
+      font-size: 2.75rem;
       letter-spacing: -0.02em;
-      text-decoration: none;
+      line-height: 1;
       color: var(--ink);
+      margin-bottom: 0.25rem;
+    }
+    .masthead .brand-sub {
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      font-style: italic;
+      font-size: 0.875rem;
+      color: var(--ink-soft);
+      margin-bottom: 1rem;
+    }
+    .masthead .ascii {
+      font-size: 0.6rem;
+      line-height: 1;
+      color: var(--ink-soft);
+      white-space: pre;
+      margin: 0.5rem 0 0.75rem;
+      letter-spacing: 0;
+    }
+    .masthead .tagline {
+      font-size: 0.75rem;
+      color: var(--ink-soft);
+      letter-spacing: 0.04em;
+    }
+    .masthead .tagline .stamp {
+      display: inline-block;
+      transform: rotate(-2deg);
+      border: 1.5px solid var(--stamp);
+      color: var(--stamp);
+      padding: 0.1rem 0.4rem;
+      margin-left: 0.5rem;
+      font-weight: 700;
+      font-size: 0.625rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .sec {
+      padding: 0 1.25rem;
+      margin-bottom: 1.75rem;
+    }
+    .sec-h {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-    }
-    nav .logo .brand-name {
-      font-family: 'Fraunces', Georgia, serif;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-    }
-    nav .links { display: flex; gap: 1.25rem; align-items: center; }
-    nav .links a { font-size: 0.75rem; color: var(--muted); text-decoration: none; font-weight: 500; }
-    nav .links a:hover { color: var(--ink); }
-
-    .container { max-width: 720px; margin: 0 auto; padding: 0 1.5rem; }
-
-    .hero {
-      background: linear-gradient(180deg, var(--paper) 0%, var(--cream-soft) 100%);
-      border-bottom: 1px solid var(--line);
-      padding: 4rem 0 3.25rem;
-      position: relative;
-    }
-    .hero .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
       font-size: 0.6875rem;
-      font-weight: 600;
-      color: var(--green);
-      letter-spacing: 0.08em;
+      font-weight: 700;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      background: var(--green-soft);
-      padding: 0.3rem 0.65rem;
-      border-radius: 999px;
-      margin-bottom: 1.25rem;
-    }
-    .hero .eyebrow::before {
-      content: "";
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--savings);
-    }
-    .hero h1 {
-      font-family: 'Fraunces', Georgia, serif;
-      font-size: 2.5rem;
-      font-weight: 600;
-      letter-spacing: -0.025em;
+      color: var(--ink);
       margin-bottom: 0.875rem;
-      line-height: 1.1;
+    }
+    .sec-h::before {
+      content: ">>";
+      color: var(--stamp);
+      font-weight: 700;
+    }
+    .sec-h .num {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 0.625rem;
+      letter-spacing: 0.1em;
+    }
+
+    .line-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      padding: 0.35rem 0;
+      font-size: 0.8125rem;
+    }
+    .line-row .label {
+      flex-shrink: 0;
       color: var(--ink);
     }
-    .hero h1 em {
-      font-style: italic;
-      color: var(--green);
+    .line-row .leader {
+      flex-grow: 1;
+      border-bottom: 1px dotted var(--line-soft);
+      margin: 0 0.25rem;
+      transform: translateY(-3px);
+      min-width: 12px;
+    }
+    .line-row .val {
+      flex-shrink: 0;
+      color: var(--ink);
       font-weight: 600;
+      text-align: right;
     }
-    .hero .tagline {
-      font-size: 1.0625rem;
+    .line-row .val.green { color: var(--green); }
+
+    .lede {
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      font-size: 1.5rem;
+      line-height: 1.25;
+      color: var(--ink);
+      letter-spacing: -0.015em;
+      margin-bottom: 0.75rem;
+    }
+    .lede em {
+      font-style: italic;
+      color: var(--stamp);
+    }
+    .lede .underline {
+      text-decoration: underline;
+      text-decoration-color: var(--stamp);
+      text-decoration-thickness: 2px;
+      text-underline-offset: 4px;
+    }
+    .body-copy {
+      font-size: 0.8125rem;
       color: var(--ink-soft);
-      max-width: 560px;
-      margin-bottom: 1.75rem;
-      line-height: 1.5;
+      line-height: 1.65;
+      margin-bottom: 1.25rem;
+      max-width: 540px;
     }
-    .hero .pricing-row {
+
+    .ask-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      border-top: 1px dashed var(--line-soft);
+    }
+    .ask-list li {
+      padding: 0.6rem 0;
+      border-bottom: 1px dashed var(--line-soft);
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      margin-bottom: 0;
-      flex-wrap: wrap;
     }
-    .hero .price-tag {
-      font-family: 'Fraunces', Georgia, serif;
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--ink);
-      letter-spacing: -0.01em;
-    }
-    .hero .price-tag .cents {
-      color: var(--green);
-    }
-    .hero .price-sub {
-      font-size: 0.8125rem;
-      color: var(--muted);
-      font-weight: 500;
-    }
-    .hero .price-divider {
-      color: var(--line);
-      font-size: 1.25rem;
-    }
-
-    .section-label {
-      font-size: 0.6875rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      font-weight: 700;
-      margin-bottom: 1rem;
-    }
-
-    /* Things you can ask */
-    .prompts-section {
-      padding: 2.75rem 0;
-      border-top: 1px solid var(--line);
-    }
-    .prompts { padding: 0; }
-    .prompt-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .prompt-card {
-      font-size: 0.875rem;
-      color: var(--ink-soft);
+    .ask-list .qmark {
+      font-family: 'IBM Plex Serif', Georgia, serif;
       font-style: italic;
-      font-family: 'Fraunces', Georgia, serif;
-      font-weight: 500;
-      padding: 0.75rem 1rem;
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      line-height: 1.4;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-      cursor: default;
-      transition: border-color 0.15s, transform 0.15s;
-    }
-    .prompt-card:hover { border-color: var(--green); }
-    .prompt-card::before { content: "\201C"; color: var(--green); margin-right: 2px; font-weight: 700; }
-    .prompt-text::after { content: "\201D"; color: var(--green); margin-left: 2px; font-weight: 700; }
-    .prompt-copy {
-      flex-shrink: 0;
-      width: 26px; height: 26px;
-      display: flex; align-items: center; justify-content: center;
-      border-radius: 4px;
-      border: none; background: none;
-      color: #c5c0a8; cursor: pointer;
-      transition: color 0.15s, background 0.15s;
-    }
-    .prompt-copy:hover { color: var(--green); background: var(--green-soft); }
-    .prompt-copy.copied { color: var(--savings); }
-
-    /* Get started */
-    .get-started {
-      padding: 2.75rem 0;
-      border-top: 1px solid var(--line);
-      background: var(--paper);
-    }
-    .get-started .container { max-width: 720px; }
-
-    .wallet-tabs {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--line);
-    }
-    .wallet-tab {
-      font-size: 0.8125rem;
-      font-weight: 600;
-      color: var(--muted);
-      background: none;
-      border: none;
-      padding: 0.625rem 1rem;
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: all 0.15s ease;
-    }
-    .wallet-tab:hover { color: var(--ink); }
-    .wallet-tab.active {
-      color: var(--green);
-      border-bottom-color: var(--green);
-    }
-
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-
-    .steps {
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
-    .step {
-      display: flex;
-      gap: 1rem;
-    }
-    .step-number {
-      flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: var(--green);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.75rem;
       font-weight: 700;
-    }
-    .step-content h3 {
-      font-size: 0.9375rem;
-      font-weight: 700;
-      margin-bottom: 0.375rem;
-      color: var(--ink);
-    }
-    .step-content p {
-      font-size: 0.8125rem;
-      color: var(--ink-soft);
-      margin-bottom: 0.5rem;
-      line-height: 1.5;
-    }
-    .step-content code {
-      display: block;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.8125rem;
-      background: var(--cream-soft);
-      border: 1px solid var(--line);
-      padding: 0.625rem 0.875rem;
-      border-radius: 6px;
-      color: var(--ink);
-      overflow-x: auto;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-
-    /* Endpoint */
-    .services {
-      padding: 2.75rem 0;
-      border-top: 1px solid var(--line);
-    }
-    .service-card {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 1.5rem;
-      box-shadow: 0 1px 2px rgba(26, 43, 31, 0.03);
-    }
-    .service-header {
-      display: flex;
-      align-items: center;
-      gap: 0.625rem;
-      margin-bottom: 1rem;
-    }
-    .service-icon {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
+      color: var(--stamp);
+      font-size: 1.25rem;
       flex-shrink: 0;
-      background: var(--green);
+      line-height: 1;
     }
-    .service-title {
-      font-family: 'Fraunces', Georgia, serif;
-      font-size: 1.125rem;
-      font-weight: 700;
-      color: var(--ink);
-      letter-spacing: -0.01em;
-    }
-    .service-price {
-      margin-left: auto;
-      font-family: 'Fraunces', Georgia, serif;
+    .ask-list .ask-text {
+      flex-grow: 1;
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      font-style: italic;
       font-size: 0.875rem;
-      font-weight: 700;
-      color: var(--green);
-      background: var(--green-soft);
-      padding: 0.3rem 0.65rem;
-      border-radius: 999px;
-      letter-spacing: -0.01em;
-    }
-    .endpoint-path {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.8125rem;
       color: var(--ink);
-      background: var(--cream-soft);
-      padding: 0.6rem 0.75rem;
-      border-radius: 6px;
-      border: 1px solid var(--line-soft);
-      margin-bottom: 0.875rem;
+      line-height: 1.4;
     }
-    .endpoint-path .verb {
-      color: var(--green);
+    .ask-list .copy-btn {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid var(--line-soft);
+      color: var(--ink-soft);
+      font-family: inherit;
+      font-size: 0.625rem;
+      padding: 0.2rem 0.45rem;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+    .ask-list .copy-btn:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .ask-list .copy-btn.copied { background: var(--green); color: var(--paper); border-color: var(--green); }
+
+    .endpoint-card {
+      border: 1.5px solid var(--ink);
+      padding: 1rem;
+      background: var(--paper);
+      position: relative;
+    }
+    .endpoint-card .corner {
+      position: absolute;
+      width: 8px; height: 8px;
+      border: 1.5px solid var(--ink);
+      background: var(--paper);
+    }
+    .endpoint-card .corner.tl { top: -5px; left: -5px; }
+    .endpoint-card .corner.tr { top: -5px; right: -5px; }
+    .endpoint-card .corner.bl { bottom: -5px; left: -5px; }
+    .endpoint-card .corner.br { bottom: -5px; right: -5px; }
+
+    .endpoint-method {
+      display: inline-block;
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 0.6875rem;
       font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      letter-spacing: 0.1em;
       margin-right: 0.5rem;
     }
-    .service-meta {
-      font-size: 0.875rem;
+    .endpoint-path {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .endpoint-meta {
+      font-size: 0.75rem;
       color: var(--ink-soft);
+      margin-top: 0.625rem;
       line-height: 1.6;
     }
+    .price-stamp {
+      display: inline-block;
+      border: 1.5px solid var(--stamp);
+      color: var(--stamp);
+      font-weight: 700;
+      padding: 0.15rem 0.4rem;
+      font-size: 0.75rem;
+      letter-spacing: 0.04em;
+      margin-left: 0.5rem;
+      transform: rotate(-1deg);
+    }
 
-    /* Retailer coverage */
-    .retailer-row {
+    .retailers {
       display: flex;
       flex-wrap: wrap;
       gap: 0.4rem;
-      margin-top: 1rem;
+      margin-top: 0.875rem;
+      padding-top: 0.75rem;
+      border-top: 1px dashed var(--line-soft);
     }
-    .retailer-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.375rem;
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 0.35rem 0.65rem;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      color: var(--ink-soft);
-      background: var(--paper);
-    }
-    .retailer-pill.live { border-color: var(--savings); color: var(--green-deep); background: var(--green-soft); }
-    .retailer-pill.live::before {
-      content: "";
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--savings);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-    .retailer-pill.soon { color: var(--muted); background: var(--cream-soft); }
-    .retailer-pill.soon::before {
-      content: "";
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #c5c0a8;
-    }
-
-    /* Examples */
-    .examples {
-      padding: 2.75rem 0;
-      border-top: 1px solid var(--line);
-    }
-    .example-block { margin-bottom: 1.5rem; }
-    .example-block:last-child { margin-bottom: 0; }
-    .example-label {
-      font-size: 0.6875rem;
+    .retail-badge {
+      font-size: 0.625rem;
       font-weight: 700;
-      color: var(--muted);
-      margin-bottom: 0.5rem;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-    pre {
-      background: var(--paper);
+      padding: 0.25rem 0.55rem;
       border: 1px solid var(--line);
-      padding: 1rem 1.25rem;
-      border-radius: 8px;
-      overflow-x: auto;
-      font-size: 0.75rem;
-      font-family: 'JetBrains Mono', monospace;
-      line-height: 1.65;
-      color: var(--ink);
-    }
-
-    /* Savings ribbon for the example response */
-    .savings-callout {
-      display: flex;
-      align-items: center;
-      gap: 0.875rem;
-      padding: 0.875rem 1.125rem;
-      background: linear-gradient(90deg, var(--green-soft), var(--cream-soft));
-      border: 1px solid var(--savings);
-      border-left: 4px solid var(--savings);
-      border-radius: 8px;
-      margin-bottom: 0.75rem;
-    }
-    .savings-callout .savings-amt {
-      font-family: 'Fraunces', Georgia, serif;
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--green-deep);
-      letter-spacing: -0.01em;
-    }
-    .savings-callout .savings-label {
-      font-size: 0.75rem;
       color: var(--ink-soft);
-      line-height: 1.4;
-    }
-    .savings-callout .savings-label strong { color: var(--ink); }
-
-    /* How it works */
-    .how {
-      padding: 2.75rem 0;
-      border-top: 1px solid var(--line);
       background: var(--paper);
     }
-    .how-steps {
-      display: flex;
-      flex-direction: column;
-      gap: 0.625rem;
+    .retail-badge.live {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
     }
-    .how-step {
+    .retail-badge.live::before {
+      content: "● ";
+      color: var(--green);
+      animation: blink 1.6s infinite;
+    }
+    @keyframes blink { 50% { opacity: 0.35; } }
+    .retail-badge.queue {
+      border-style: dashed;
+      color: var(--muted);
+    }
+
+    .checklist {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .checklist li {
+      padding: 0.5rem 0;
+      border-bottom: 1px dashed var(--line-soft);
       display: flex;
-      gap: 1rem;
-      padding: 1rem 1.125rem;
-      background: var(--cream-soft);
-      border: 1px solid var(--line-soft);
-      border-radius: 8px;
+      gap: 0.75rem;
       align-items: flex-start;
     }
-    .how-step-num {
+    .checklist li:last-child { border-bottom: none; }
+    .checklist .num {
       flex-shrink: 0;
-      font-family: 'Fraunces', Georgia, serif;
       font-weight: 700;
-      font-size: 1.125rem;
-      color: var(--green);
-      letter-spacing: -0.01em;
-      line-height: 1.3;
+      color: var(--stamp);
+      font-size: 0.75rem;
+      width: 1.5rem;
     }
-    .how-step-text {
-      font-size: 0.875rem;
+    .checklist .what {
+      flex-grow: 1;
+      font-size: 0.8125rem;
       color: var(--ink-soft);
       line-height: 1.55;
     }
-    .how-step-text strong { color: var(--ink); font-weight: 700; }
+    .checklist .what strong { color: var(--ink); }
 
-    /* Resources */
-    .resources {
-      padding: 2.75rem 0;
-      border-top: 1px solid var(--line);
+    pre {
+      background: var(--ink);
+      color: var(--paper);
+      padding: 1rem 1.125rem;
+      font-family: inherit;
+      font-size: 0.75rem;
+      line-height: 1.65;
+      overflow-x: auto;
+      border: 1.5px solid var(--ink);
+      margin: 0.625rem 0;
     }
-    .resource-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
+    pre.paper-pre {
+      background: var(--paper-deep);
+      color: var(--ink);
+      border: 1.5px solid var(--line);
     }
-    .resource-link {
-      display: block;
-      font-size: 0.8125rem;
+    code.inline {
+      background: var(--paper-deep);
+      padding: 0.05rem 0.3rem;
+      border: 1px solid var(--line-soft);
+      font-size: 0.75rem;
+    }
+
+    .totals {
+      margin: 0.5rem 0 0.75rem;
+      padding: 0.75rem 0;
+      border-top: 1.5px solid var(--ink);
+      border-bottom: 1.5px solid var(--ink);
+    }
+    .totals .total-row { font-size: 0.875rem; }
+    .totals .total-row.grand { font-weight: 700; font-size: 1rem; color: var(--ink); }
+    .totals .total-row.grand .val { color: var(--stamp); font-size: 1.125rem; }
+
+    .ticket-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1rem;
+      border-bottom: 1.5px solid var(--ink);
+    }
+    .ticket-tab {
+      flex: 1;
+      background: var(--paper);
+      border: 1.5px solid var(--ink);
+      border-bottom: none;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.6875rem;
       font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.65rem 0.5rem;
+      cursor: pointer;
+      margin-right: -1.5px;
+      transition: all 0.15s;
+      position: relative;
+    }
+    .ticket-tab:last-child { margin-right: 0; }
+    .ticket-tab:hover { background: var(--paper-deep); }
+    .ticket-tab.active {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .tab-content { display: none; padding-top: 0.5rem; }
+    .tab-content.active { display: block; }
+
+    .file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .file-list li {
+      padding: 0.55rem 0;
+      border-bottom: 1px dashed var(--line-soft);
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      font-size: 0.8125rem;
+    }
+    .file-list li:last-child { border-bottom: none; }
+    .file-list a {
       color: var(--ink);
       text-decoration: none;
-      padding: 0.875rem 1rem;
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      font-family: 'JetBrains Mono', monospace;
-      transition: border-color 0.15s, transform 0.15s;
+      font-weight: 500;
     }
-    .resource-link:hover { border-color: var(--green); }
-    .resource-label {
-      font-size: 0.6875rem;
-      color: var(--muted);
-      display: block;
-      margin-bottom: 0.25rem;
-      font-family: 'Inter', sans-serif;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+    .file-list a:hover { color: var(--stamp); }
+    .file-list .file-tag {
+      flex-shrink: 0;
+      font-size: 0.5625rem;
       font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      width: 70px;
     }
 
-    /* Sponsor strip */
-    .sponsors {
-      padding: 1.5rem 0 2rem;
-      border-top: 1px solid var(--line);
-      background: var(--cream-soft);
+    .footer-receipt {
+      text-align: center;
+      padding: 1.25rem;
+      border-top: 1px dashed var(--line);
+      font-size: 0.6875rem;
+      color: var(--ink-soft);
+      letter-spacing: 0.04em;
     }
-    .sponsors-row {
+    .footer-receipt .barcode {
+      font-size: 1.25rem;
+      letter-spacing: 0;
+      color: var(--ink);
+      line-height: 1;
+      margin: 0.5rem 0;
+      user-select: none;
+      letter-spacing: 0.4em;
+      font-weight: 700;
+    }
+    .footer-receipt .links {
       display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+    .footer-receipt .links a {
+      color: var(--ink-soft);
+      text-decoration: none;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .footer-receipt .links a:hover { color: var(--stamp); border-color: var(--stamp); }
+
+    .verified-stamp {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-      font-size: 0.75rem;
-      color: var(--muted);
-    }
-    .sponsors-label {
+      transform: rotate(-6deg);
+      border: 2.5px solid var(--stamp);
+      color: var(--stamp);
+      padding: 0.35rem 0.75rem;
+      font-weight: 700;
       font-size: 0.6875rem;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
-      font-weight: 700;
-      color: var(--muted);
-    }
-    .sponsors-row strong {
-      color: var(--ink);
-      font-weight: 700;
-      font-family: 'Fraunces', Georgia, serif;
-      font-size: 0.9375rem;
+      background: var(--paper);
+      box-shadow: 1px 1px 0 var(--stamp);
     }
 
-    footer {
-      border-top: 1px solid var(--line);
-      padding: 2rem 0;
-      background: var(--paper);
-    }
-    footer .footer-inner {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 0 1.5rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }
-    footer .footer-links { display: flex; gap: 1.25rem; flex-wrap: wrap; }
-    footer a { font-size: 0.75rem; color: var(--muted); text-decoration: none; }
-    footer a:hover { color: var(--green); }
-    footer .footer-note {
-      font-size: 0.6875rem;
+    .sponsors-rec {
+      text-align: center;
+      padding: 1rem 1.25rem;
+      border-top: 1px dashed var(--line);
+      border-bottom: 1px dashed var(--line);
+      font-size: 0.625rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
       color: var(--muted);
-      font-style: italic;
+    }
+    .sponsors-rec strong {
+      color: var(--ink);
+      font-weight: 700;
+      margin: 0 0.625rem;
+      letter-spacing: 0.1em;
     }
 
     @media (max-width: 640px) {
-      nav { padding: 0 1rem; }
-      nav .links { gap: 0.875rem; }
-      nav .links a { font-size: 0.6875rem; }
-      .hero h1 { font-size: 1.5rem; }
-      .wallet-tabs { flex-wrap: wrap; }
-      .wallet-tab { font-size: 0.75rem; padding: 0.5rem 0.75rem; }
-      .resource-grid { grid-template-columns: 1fr; }
-      footer .footer-inner { flex-direction: column; align-items: flex-start; }
+      .receipt { padding: 1.5rem 1rem 3rem; }
+      .masthead .brand { font-size: 2rem; }
+      .lede { font-size: 1.25rem; }
+      .ticket-tab { font-size: 0.625rem; padding: 0.55rem 0.375rem; letter-spacing: 0.04em; }
     }
   </style>
 </head>
 <body>
 
-  <nav>
-    <a class="logo" href="/">
-      <svg width="22" height="22" viewBox="0 0 32 32">
-        <rect width="32" height="32" rx="8" fill="#1d6f42"/>
-        <path d="M9 20 L13 16 L17 18 L23 11" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-        <circle cx="23" cy="11" r="1.8" fill="#fff"/>
-      </svg>
-      <span class="brand-name">PricePilot</span>
-    </a>
-    <div class="links">
-      <a href="/openapi.json">OpenAPI</a>
-      <a href="/skill.md">skill.md</a>
-      <a href="/llms.txt">llms.txt</a>
-      <a href="https://x402.org">x402</a>
-      <a href="https://mpp.dev">MPP</a>
-    </div>
-  </nav>
+  <main class="receipt">
+    <div class="paper">
 
-  <section class="hero">
-    <div class="container">
-      <span class="eyebrow">Save more on every buy</span>
-      <h1>Find the <em>cheapest</em> Amazon listing — verified.</h1>
-      <p class="tagline">A pay-per-call price agent for shopping bots. Name a product, PricePilot resolves the exact variant on Amazon and returns the cheapest verified offer — fresh price, real stock, real seller. Walmart and Target coming next.</p>
-      <div class="pricing-row">
-        <span class="price-tag">$0.05<span class="cents"> /check</span></span>
-        <span class="price-divider">·</span>
-        <span class="price-sub">paid in USDC via x402 or MPP</span>
-      </div>
-    </div>
-  </section>
+      <header class="masthead">
+        <div class="meta-row">
+          <span>Vol. 01 &middot; No. 01</span>
+          <span>May 23, 2026</span>
+        </div>
+        <h1 class="brand">PRICE&middot;PILOT</h1>
+        <p class="brand-sub">An agent's receipt for the cheapest verified price</p>
+        <pre class="ascii" style="background: transparent; color: var(--ink-soft); border: none; padding: 0; margin: 0.5rem 0 0.75rem;">  ┌─────────────────────────────┐
+  │  ASK · RESOLVE · VERIFY · PAY │
+  └─────────────────────────────┘</pre>
+        <p class="tagline">
+          Pay-per-call price agent
+          <span class="stamp">$0.05 / check</span>
+        </p>
+      </header>
 
-  <section class="prompts-section">
-    <div class="container">
-      <p class="section-label">What your agent can ask today</p>
-      <p style="font-size: 0.8125rem; color: var(--ink-soft); margin-top: -0.5rem; margin-bottom: 1rem;">Anything Amazon sells with a clear brand + model + variant. The more specific your spec, the cleaner the match.</p>
-      <section class="prompts">
-        <div class="prompt-grid">
-          <div class="prompt-card"><span class="prompt-text">Cheapest Nike Killshot 2 Sail/Lucid Green men's size 11.5</span><button class="prompt-copy" onclick="copyPrompt(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3.5A1.5 1.5 0 009.5 2h-6A1.5 1.5 0 002 3.5v6A1.5 1.5 0 003.5 11H5" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
-          <div class="prompt-card"><span class="prompt-text">Cheapest Sony WH-1000XM5 headphones in black</span><button class="prompt-copy" onclick="copyPrompt(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3.5A1.5 1.5 0 009.5 2h-6A1.5 1.5 0 002 3.5v6A1.5 1.5 0 003.5 11H5" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
-          <div class="prompt-card"><span class="prompt-text">Cheapest Hoka Clifton 9 women's size 8</span><button class="prompt-copy" onclick="copyPrompt(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3.5A1.5 1.5 0 009.5 2h-6A1.5 1.5 0 002 3.5v6A1.5 1.5 0 003.5 11H5" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
-          <div class="prompt-card"><span class="prompt-text">Cheapest LEGO 10497 Galaxy Explorer set</span><button class="prompt-copy" onclick="copyPrompt(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3.5A1.5 1.5 0 009.5 2h-6A1.5 1.5 0 002 3.5v6A1.5 1.5 0 003.5 11H5" stroke="currentColor" stroke-width="1.5"/></svg></button></div>
+      <section class="sec">
+        <p class="lede">Name a product. Get a <em>printed receipt</em> back with the cheapest <span class="underline">verified</span> buy link.</p>
+        <p class="body-copy">Today PricePilot resolves the exact variant on Amazon — SERP, parent PDP, child PDP — and returns a verified buyable offer with real price, real stock, real seller. Walmart and Target are next on the line.</p>
+        <div class="line-row">
+          <span class="label">PAID IN</span>
+          <span class="leader"></span>
+          <span class="val">USDC &middot; x402 / MPP</span>
+        </div>
+        <div class="line-row">
+          <span class="label">SETTLEMENT</span>
+          <span class="leader"></span>
+          <span class="val">Base &amp; Tempo</span>
+        </div>
+        <div class="line-row">
+          <span class="label">DISCOVERY</span>
+          <span class="leader"></span>
+          <span class="val">AgentCash &middot; OpenAPI</span>
         </div>
       </section>
-    </div>
-  </section>
 
-  <div class="container">
-    <section class="services">
-      <p class="section-label">The endpoint</p>
-      <div class="service-card">
-        <div class="service-header">
-          <div class="service-icon"></div>
-          <div class="service-title">Cheapest Product</div>
-          <div class="service-price">$0.05 / check</div>
-        </div>
-        <div class="endpoint-path"><span class="verb">POST</span>/find_cheapest</div>
-        <p class="service-meta">Pass an explicit product spec — brand, model, variant attributes (color, size, storage). Today PricePilot resolves the exact variant on Amazon (SERP → parent PDP → child PDP) and returns the verified buyable offer. More retailers fan out from the same call as we add them.</p>
-        <div class="retailer-row">
-          <span class="retailer-pill live">Amazon — live</span>
-          <span class="retailer-pill soon">Walmart — next</span>
-          <span class="retailer-pill soon">Target — planned</span>
-        </div>
-      </div>
-      <p style="font-size: 0.75rem; color: var(--muted); margin-top: 1rem; padding: 0.75rem 0; border-top: 1px solid var(--line);">
-        Every response includes a stable <code style="font-size: 0.6875rem; background: var(--paper); border: 1px solid var(--line); padding: 0.1rem 0.3rem; border-radius: 3px; font-family: 'JetBrains Mono', monospace; color: var(--ink);">product_id</code> so your agent can store, compare, or watch a product over time.
-      </p>
-    </section>
-  </div>
+      <section class="sec">
+        <p class="sec-h">Things your agent can ask <span class="num">[4]</span></p>
+        <ul class="ask-list">
+          <li>
+            <span class="qmark">?</span>
+            <span class="ask-text">Cheapest Nike Killshot 2 Sail/Lucid Green men's size 11.5</span>
+            <button class="copy-btn" onclick="copyAsk(this)">copy</button>
+          </li>
+          <li>
+            <span class="qmark">?</span>
+            <span class="ask-text">Cheapest Sony WH-1000XM5 headphones in black</span>
+            <button class="copy-btn" onclick="copyAsk(this)">copy</button>
+          </li>
+          <li>
+            <span class="qmark">?</span>
+            <span class="ask-text">Cheapest Hoka Clifton 9 women's size 8</span>
+            <button class="copy-btn" onclick="copyAsk(this)">copy</button>
+          </li>
+          <li>
+            <span class="qmark">?</span>
+            <span class="ask-text">Cheapest LEGO 10497 Galaxy Explorer set</span>
+            <button class="copy-btn" onclick="copyAsk(this)">copy</button>
+          </li>
+        </ul>
+      </section>
 
-  <section class="how">
-    <div class="container">
-      <p class="section-label">What happens on a /find_cheapest call</p>
-      <div class="how-steps">
-        <div class="how-step">
-          <span class="how-step-num">01</span>
-          <div class="how-step-text"><strong>You send a product spec.</strong> Brand, model, variant fields (size, color, storage). No URLs to guess, no SKUs to look up.</div>
-        </div>
-        <div class="how-step">
-          <span class="how-step-num">02</span>
-          <div class="how-step-text"><strong>We resolve the exact variant on Amazon.</strong> SERP → parent PDP → child PDP, so the offer matches your spec — not a near-miss.</div>
-        </div>
-        <div class="how-step">
-          <span class="how-step-num">03</span>
-          <div class="how-step-text"><strong>We pull the live offer.</strong> Real price, real stock, real seller from the PDP at request time. Not a cached SERP estimate.</div>
-        </div>
-        <div class="how-step">
-          <span class="how-step-num">04</span>
-          <div class="how-step-text"><strong>You get one JSON response.</strong> The cheapest verified offer plus a stable <code style="font-size: 0.6875rem; font-family: 'JetBrains Mono', monospace;">product_id</code> you can reuse.</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="get-started">
-    <div class="container">
-      <p class="section-label">Make your first call</p>
-
-      <div class="steps" style="margin-bottom: 2rem;">
-        <div class="step">
-          <div class="step-number">1</div>
-          <div class="step-content">
-            <h3>Pick a wallet your agent can pay from</h3>
-            <p>AgentCash is the fastest — it ships USDC and signs payments for any agent. Or use your own Base / Tempo wallet directly via x402 / MPP.</p>
+      <section class="sec">
+        <p class="sec-h">The endpoint <span class="num">[1 of 1]</span></p>
+        <div class="endpoint-card">
+          <div class="corner tl"></div>
+          <div class="corner tr"></div>
+          <div class="corner bl"></div>
+          <div class="corner br"></div>
+          <div>
+            <span class="endpoint-method">POST</span>
+            <span class="endpoint-path">/find_cheapest</span>
+            <span class="price-stamp">$0.05</span>
+          </div>
+          <p class="endpoint-meta">Pass an explicit product spec — brand, model, variant attributes (color, size, storage). PricePilot returns the cheapest verified buyable offer plus a stable <code class="inline">product_id</code> your agent can reuse.</p>
+          <div class="retailers">
+            <span class="retail-badge live">Amazon &mdash; live</span>
+            <span class="retail-badge queue">Walmart &mdash; next</span>
+            <span class="retail-badge queue">Target &mdash; planned</span>
           </div>
         </div>
-        <div class="step">
-          <div class="step-number">2</div>
-          <div class="step-content">
-            <h3>POST a product spec to <code style="display:inline; padding:0.1rem 0.35rem; font-size:0.75rem;">/find_cheapest</code></h3>
-            <p>The first request gets a 402 with the price ($0.05). Re-send with the payment header and you get the cheapest offer.</p>
-            <code>$ curl -X POST https://pricepilot.vercel.app/find_cheapest \
-    -H "Content-Type: application/json" \
-    -d '{"brand":"Nike","model":"Killshot 2","size":{"system":"US","gender":"men","value":11.5}}'</code>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-number">3</div>
-          <div class="step-content">
-            <h3>Read the cheapest offer from the response</h3>
-            <p>The <code style="display:inline; padding:0.1rem 0.35rem; font-size:0.75rem;">best</code> field is the verified buyable offer. Hand it to your shopper, log it, or check again tomorrow.</p>
-          </div>
-        </div>
-      </div>
+      </section>
 
-      <p class="section-label" style="margin-top: 0.5rem;">How to pay</p>
-      <div class="wallet-tabs">
-        <button class="wallet-tab active" data-tab="agentcash">AgentCash (easiest)</button>
-        <button class="wallet-tab" data-tab="x402">x402 (Base USDC)</button>
-        <button class="wallet-tab" data-tab="mpp">MPP (Tempo USDC)</button>
-      </div>
+      <section class="sec">
+        <p class="sec-h">What happens on a call <span class="num">[4 steps]</span></p>
+        <ul class="checklist">
+          <li>
+            <span class="num">01.</span>
+            <span class="what"><strong>You send a product spec.</strong> Brand, model, variant fields. No URLs to guess, no SKUs to look up.</span>
+          </li>
+          <li>
+            <span class="num">02.</span>
+            <span class="what"><strong>We resolve the exact variant on Amazon.</strong> SERP &rarr; parent PDP &rarr; child PDP, so the offer matches your spec &mdash; not a near-miss.</span>
+          </li>
+          <li>
+            <span class="num">03.</span>
+            <span class="what"><strong>We pull the live offer.</strong> Real price, real stock, real seller from the PDP at request time. Not a cached SERP estimate.</span>
+          </li>
+          <li>
+            <span class="num">04.</span>
+            <span class="what"><strong>You get one JSON response.</strong> The cheapest verified offer plus a stable <code class="inline">product_id</code>.</span>
+          </li>
+        </ul>
+      </section>
 
-      <div class="tab-content active" id="agentcash">
-        <div class="steps">
-          <div class="step">
-            <div class="step-number">1</div>
-            <div class="step-content">
-              <h3>Onboard once</h3>
-              <p>Creates a wallet, funds it with test USDC, signs payments for you.</p>
-              <code>$ npx agentcash onboard</code>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-number">2</div>
-            <div class="step-content">
-              <h3>Try a paid call</h3>
-              <p>Runs the curl above and pays the 402 automatically.</p>
-              <code>$ npx agentcash try https://pricepilot.vercel.app/find_cheapest</code>
-            </div>
-          </div>
-        </div>
-      </div>
+      <section class="sec">
+        <p class="sec-h">Sample receipt <span class="num">[POST /find_cheapest]</span></p>
 
-      <div class="tab-content" id="x402">
-        <div class="steps">
-          <div class="step">
-            <div class="step-number">1</div>
-            <div class="step-content">
-              <h3>Have USDC on Base mainnet (or Sepolia)</h3>
-              <p>Any EOA or smart wallet with a private key your agent can sign with.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-number">2</div>
-            <div class="step-content">
-              <h3>Wrap fetch with x402-fetch</h3>
-              <code>import { withPaymentInterceptor } from 'x402-fetch'
-const fetchWithPay = withPaymentInterceptor(fetch, account)
-await fetchWithPay('https://pricepilot.vercel.app/find_cheapest', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(spec),
-})</code>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="tab-content" id="mpp">
-        <div class="steps">
-          <div class="step">
-            <div class="step-number">1</div>
-            <div class="step-content">
-              <h3>Have USDC on Tempo</h3>
-              <p>Any Tempo wallet your agent can sign from. Privy server wallets work.</p>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-number">2</div>
-            <div class="step-content">
-              <h3>Configure mppx and call</h3>
-              <code>import { Mppx, tempo } from 'mppx/client'
-Mppx.create({ methods: [tempo({ account: tempoWallet })] })
-await fetch('https://pricepilot.vercel.app/find_cheapest', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(spec),
-})</code>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="container">
-    <section class="examples">
-      <p class="section-label">Example call</p>
-
-      <div class="example-block">
-        <p class="example-label">Request — POST /find_cheapest</p>
-<pre>{
+        <p style="font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem;">&mdash; Request &mdash;</p>
+<pre class="paper-pre">POST /find_cheapest
+{
   "brand": "Nike",
   "model": "Killshot 2",
   "color": "Sail/Lucid Green",
@@ -795,14 +648,42 @@ await fetch('https://pricepilot.vercel.app/find_cheapest', {
   "condition": "new",
   "postal_code": "10001"
 }</pre>
-      </div>
 
-      <div class="example-block">
-        <p class="example-label">Response</p>
-        <div class="savings-callout">
-          <span class="savings-amt">$89.97</span>
-          <span class="savings-label"><strong>verified buyable on Amazon</strong><br>example response — actual prices vary by query</span>
+        <p style="font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-top: 1.25rem; margin-bottom: 0.5rem;">&mdash; Response &mdash;</p>
+
+        <div class="totals">
+          <div class="line-row total-row">
+            <span class="label">PRODUCT</span>
+            <span class="leader"></span>
+            <span class="val">Nike Killshot 2</span>
+          </div>
+          <div class="line-row total-row">
+            <span class="label">VARIANT</span>
+            <span class="leader"></span>
+            <span class="val">Sail/Lucid &middot; M 11.5</span>
+          </div>
+          <div class="line-row total-row">
+            <span class="label">RETAILER</span>
+            <span class="leader"></span>
+            <span class="val">Amazon (verified)</span>
+          </div>
+          <div class="line-row total-row">
+            <span class="label">STOCK</span>
+            <span class="leader"></span>
+            <span class="val green">In stock</span>
+          </div>
+          <div class="line-row total-row grand">
+            <span class="label">CHEAPEST</span>
+            <span class="leader"></span>
+            <span class="val">$89.97</span>
+          </div>
         </div>
+
+        <div style="text-align: center; margin: 1rem 0;">
+          <span class="verified-stamp">Verified &middot; 2026-05-23</span>
+        </div>
+
+        <p style="font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; margin-top: 1rem;">&mdash; Raw JSON &mdash;</p>
 <pre>{
   "product_id": "nike-killshot-2",
   "best": {
@@ -815,96 +696,126 @@ await fetch('https://pricepilot.vercel.app/find_cheapest', {
     "variant": { "color": "Sail/Lucid Green", "size": "11.5" }
   },
   "all_offers": [
-    { "source": "amazon", "price": 89.97, "in_stock": true, "url": "https://www.amazon.com/dp/B0XXXXXXX" }
+    { "source": "amazon", "price": 89.97, "in_stock": true }
   ],
-  "missing_sources": ["walmart", "target", "best_buy", "home_depot"],
+  "missing_sources": ["walmart", "target"],
   "checked_at": "2026-05-23T15:42:11Z"
 }</pre>
-      </div>
-    </section>
-  </div>
+      </section>
 
-  <section class="resources">
-    <div class="container">
-      <p class="section-label">Resources</p>
-      <div class="resource-grid">
-        <a href="/openapi.json" class="resource-link">
-          <span class="resource-label">OpenAPI</span>
-          /openapi.json
-        </a>
-        <a href="/skill.md" class="resource-link">
-          <span class="resource-label">Skill Def</span>
-          /skill.md
-        </a>
-        <a href="/llms.txt" class="resource-link">
-          <span class="resource-label">LLM Context</span>
-          /llms.txt
-        </a>
-        <a href="https://github.com/mmurrs/agenticenghack" class="resource-link">
-          <span class="resource-label">Source</span>
-          GitHub
-        </a>
-        <a href="https://x402scan.com" class="resource-link">
-          <span class="resource-label">Verify x402</span>
-          x402 Scanner
-        </a>
-        <a href="https://mppscan.com" class="resource-link">
-          <span class="resource-label">Verify MPP</span>
-          MPP Scanner
-        </a>
-      </div>
-    </div>
-  </section>
+      <section class="sec">
+        <p class="sec-h">Make your first call <span class="num">[3 steps]</span></p>
 
-  <section class="sponsors">
-    <div class="container">
-      <div class="sponsors-row">
-        <span class="sponsors-label">Built with</span>
-        <strong>Nimble</strong>
-        <span>·</span>
-        <strong>ClickHouse</strong>
-        <span>·</span>
-        <strong>Senso.ai</strong>
-      </div>
-    </div>
-  </section>
+        <ul class="checklist">
+          <li>
+            <span class="num">01.</span>
+            <span class="what"><strong>Pick a wallet your agent can pay from.</strong> AgentCash is fastest &mdash; ships USDC and signs payments. Or use Base / Tempo directly.</span>
+          </li>
+          <li>
+            <span class="num">02.</span>
+            <span class="what"><strong>POST a product spec to <code class="inline">/find_cheapest</code>.</strong> First request gets a 402 with the price ($0.05). Re-send with the payment header to receive the offer.</span>
+          </li>
+          <li>
+            <span class="num">03.</span>
+            <span class="what"><strong>Read the cheapest offer.</strong> The <code class="inline">best</code> field is the verified buyable result. Hand it to your shopper, log it, or check again tomorrow.</span>
+          </li>
+        </ul>
 
-  <footer>
-    <div class="footer-inner">
-      <div class="footer-links">
-        <a href="https://x402.org">x402</a> · <a href="https://mpp.dev">MPP</a>
-        <a href="https://agentcash.dev">AgentCash</a>
-        <a href="/openapi.json">OpenAPI</a>
-        <a href="/skill.md">skill.md</a>
-        <a href="/llms.txt">llms.txt</a>
+<pre style="margin-top: 0.875rem;">$ curl -X POST https://pricepilot-sepia.vercel.app/find_cheapest \
+    -H "Content-Type: application/json" \
+    -d '{"brand":"Nike","model":"Killshot 2",
+        "size":{"system":"US","gender":"men","value":11.5}}'</pre>
+
+        <p class="sec-h" style="margin-top: 1.5rem;">How to pay <span class="num">[3 options]</span></p>
+
+        <div class="ticket-tabs">
+          <button class="ticket-tab active" data-tab="agentcash">AgentCash</button>
+          <button class="ticket-tab" data-tab="x402">x402 &middot; Base</button>
+          <button class="ticket-tab" data-tab="mpp">MPP &middot; Tempo</button>
+        </div>
+
+        <div class="tab-content active" id="agentcash">
+          <p class="body-copy" style="margin-bottom: 0.5rem;">Onboard once &mdash; wallet, USDC, payment signing all handled. Then try a real paid call.</p>
+<pre>$ npx agentcash onboard
+$ npx agentcash try https://pricepilot-sepia.vercel.app/find_cheapest</pre>
+        </div>
+
+        <div class="tab-content" id="x402">
+          <p class="body-copy" style="margin-bottom: 0.5rem;">Wrap fetch with x402-fetch. Any Base wallet your agent can sign with works.</p>
+<pre>import { withPaymentInterceptor } from 'x402-fetch'
+const fetchWithPay = withPaymentInterceptor(fetch, account)
+await fetchWithPay('https://pricepilot-sepia.vercel.app/find_cheapest', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(spec),
+})</pre>
+        </div>
+
+        <div class="tab-content" id="mpp">
+          <p class="body-copy" style="margin-bottom: 0.5rem;">Configure mppx with a Tempo wallet &mdash; Privy server wallets work fine.</p>
+<pre>import { Mppx, tempo } from 'mppx/client'
+Mppx.create({ methods: [tempo({ account: tempoWallet })] })
+await fetch('https://pricepilot-sepia.vercel.app/find_cheapest', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(spec),
+})</pre>
+        </div>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">Resources</p>
+        <ul class="file-list">
+          <li><span class="file-tag">OpenAPI</span><a href="/openapi.json">/openapi.json</a></li>
+          <li><span class="file-tag">Skill</span><a href="/skill.md">/skill.md</a></li>
+          <li><span class="file-tag">LLMs</span><a href="/llms.txt">/llms.txt</a></li>
+          <li><span class="file-tag">Source</span><a href="https://github.com/mmurrs/agenticenghack">github.com/mmurrs/agenticenghack</a></li>
+          <li><span class="file-tag">x402</span><a href="https://x402scan.com">x402scan.com</a></li>
+          <li><span class="file-tag">MPP</span><a href="https://mppscan.com">mppscan.com</a></li>
+        </ul>
+      </section>
+
+      <div class="sponsors-rec">
+        Built with <strong>Nimble</strong> &middot; <strong>ClickHouse</strong> &middot; <strong>Senso.ai</strong>
       </div>
-      <span class="footer-note">Built at Agentic Engineering Hack — May 23, 2026</span>
+
+      <footer class="footer-receipt">
+        <div>&mdash; END OF RECEIPT &mdash;</div>
+        <div class="barcode">||| ||| | || ||||| | || ||| || | |||| || ||| |</div>
+        <div>PricePilot &middot; Agentic Engineering Hack &middot; May 23, 2026</div>
+        <div class="links">
+          <a href="https://x402.org">x402</a>
+          <a href="https://mpp.dev">MPP</a>
+          <a href="https://agentcash.dev">AgentCash</a>
+        </div>
+      </footer>
+
     </div>
-  </footer>
+  </main>
 
   <script>
-    document.querySelectorAll('.wallet-tab').forEach(tab => {
+    document.querySelectorAll('.ticket-tab').forEach(tab => {
       tab.addEventListener('click', () => {
-        const targetTab = tab.dataset.tab;
-        document.querySelectorAll('.wallet-tab').forEach(t => t.classList.remove('active'));
+        const t = tab.dataset.tab;
+        document.querySelectorAll('.ticket-tab').forEach(x => x.classList.remove('active'));
         tab.classList.add('active');
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        document.getElementById(targetTab).classList.add('active');
+        document.getElementById(t).classList.add('active');
       });
     });
 
-    function copyPrompt(btn) {
-      const text = btn.parentElement.querySelector('.prompt-text').textContent;
+    function copyAsk(btn) {
+      const text = btn.parentElement.querySelector('.ask-text').textContent.trim();
       navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
         btn.classList.add('copied');
-        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        btn.textContent = '✓ ok';
         setTimeout(() => {
           btn.classList.remove('copied');
-          btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V3.5A1.5 1.5 0 009.5 2h-6A1.5 1.5 0 002 3.5v6A1.5 1.5 0 003.5 11H5" stroke="currentColor" stroke-width="1.5"/></svg>';
-        }, 1500);
+          btn.textContent = orig;
+        }, 1400);
       });
     }
   </script>
-
 </body>
 </html>
