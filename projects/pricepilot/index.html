@@ -1451,86 +1451,11 @@
       </section>
 
       <section class="sec">
-        <p class="sec-h">End-to-end architecture <span class="num">[system flow + integrations]</span></p>
-        <p class="lede">PricePilot is the shopping plugin behind the <em>Hermes Telegram agent</em>.</p>
-        <p class="body-copy">A shopper texts Hermes in Telegram. Hermes reasons over the request, structures a product spec, and pays $0.05 to call PricePilot. PricePilot fans out across live retailers via Nimble, verifies the offer, logs the observation in ClickHouse, and returns a cited receipt Hermes hands back to the user.</p>
-        <div class="arch-diagram" aria-label="PricePilot end-to-end architecture diagram">
+        <p class="sec-h">Tools under the hood <span class="num">[verify, store, report]</span></p>
+        <p class="body-copy">After PricePilot is paid, four things happen before Hermes hears back: Nimble pulls live SERP + PDP variant data, Verify rejects near-miss variants, ClickHouse logs the observation, and Senso writes a cited report. The receipt that lands in Telegram is the cheapest verified buyable offer plus the IDs to look it up later.</p>
+        <div class="arch-diagram" aria-label="PricePilot Layer 3 tools">
           <div class="arch-kicker">
-            <span>Layer 1 — User-facing agent loop</span>
-            <span class="arch-dots" aria-hidden="true"><span class="arch-dot live"></span><span class="arch-dot pay"></span><span class="arch-dot"></span></span>
-          </div>
-          <div class="logo-track compact">
-            <div class="logo-card">
-              <span class="logo-mark telegram"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-telegram"></use></svg></span>
-              <span class="logo-copy">
-                <span class="node-h">Telegram</span>
-                <span class="node-p">shopper asks in chat</span>
-              </span>
-            </div>
-            <span class="arch-arrow">&rarr;</span>
-            <div class="logo-card dark">
-              <span class="logo-mark hermes"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-hermes"></use></svg></span>
-              <span class="logo-copy">
-                <span class="node-h">Hermes</span>
-                <span class="node-p">reasons + structures spec</span>
-              </span>
-            </div>
-            <span class="arch-arrow">&rarr;</span>
-            <div class="logo-card">
-              <span class="logo-mark payment"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-payment"></use></svg></span>
-              <span class="logo-copy">
-                <span class="node-h">x402 / MPP</span>
-                <span class="node-p">$0.05 paid unlock</span>
-              </span>
-            </div>
-            <span class="arch-arrow">&rarr;</span>
-            <div class="logo-card">
-              <span class="logo-mark pricepilot"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-pricepilot"></use></svg></span>
-              <span class="logo-copy">
-                <span class="node-h">PricePilot</span>
-                <span class="node-p">find_cheapest_product</span>
-              </span>
-            </div>
-          </div>
-          <div class="fanout-panel">
-            <div class="fanout-label">
-              <span>Layer 2 &mdash; Retailer fan-out (parallel, via Nimble)</span>
-              <span class="fanout-hint" aria-hidden="true">⤵</span>
-            </div>
-            <div class="fanout-grid">
-              <div class="retailer-logo">
-                <span class="logo-mark amazon wide"><svg class="mark-svg" viewBox="0 0 48 32" aria-hidden="true" focusable="false"><use href="#mark-amazon"></use></svg></span>
-                <span class="brand-word">Amazon</span>
-                <span class="status live">live</span>
-              </div>
-              <div class="retailer-logo">
-                <span class="logo-mark walmart"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-walmart"></use></svg></span>
-                <span class="brand-word">Walmart</span>
-                <span class="status live">live</span>
-              </div>
-              <div class="retailer-logo next">
-                <span class="logo-mark target"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-target"></use></svg></span>
-                <span class="brand-word">Target</span>
-                <span class="status">next</span>
-              </div>
-              <div class="retailer-logo next">
-                <span class="logo-mark ebay wide"><svg class="mark-svg" viewBox="0 0 48 32" aria-hidden="true" focusable="false"><use href="#mark-ebay"></use></svg></span>
-                <span class="brand-word">eBay</span>
-                <span class="status">next</span>
-              </div>
-              <div class="retailer-logo next">
-                <span class="logo-mark facebook"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-facebook"></use></svg></span>
-                <span class="brand-word">Facebook</span>
-                <span class="status">next</span>
-              </div>
-            </div>
-            <div class="fanout-return-flow" aria-hidden="true">
-              <span class="return-arrow">↑</span>
-              <span class="return-label">All offers return with PDP-verified prices</span>
-            </div>
-          </div>
-          <div class="arch-kicker" style="margin-top: 1rem;">
-            <span>Layer 3 &mdash; Verify, store, and report</span>
+            <span>Verify, store, and report</span>
             <span class="arch-dots" aria-hidden="true"><span class="arch-dot live"></span><span class="arch-dot live"></span><span class="arch-dot live"></span></span>
           </div>
           <div class="logo-track compact">
