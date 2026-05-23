@@ -17,7 +17,7 @@ User:  "Cheapest Sony WH-1000XM5"
         ▼
   Nimble fan-out (parallel)
    ├─ amazon_serp("Sony WH-1000XM5")  → top hit ASIN
-   ├─ walmart_search(...)             → top hit URL
+   ├─ (future) google_search(... site:walmart.com) → walmart_pdp
    ├─ target_pdp / best_buy_pdp / home_depot_pdp via google_search resolution
    └─ (stretch) ebay custom agent     → resale floor price
         │
@@ -52,8 +52,8 @@ User:  "Cheapest Sony WH-1000XM5"
 │                           │                              │
 │      ┌────────────────────┼────────────────────┐         │
 │      │                    │                    │         │
-│  find_cheapest      track_product         get_history    │
-│   (product_name)     (product_id, $)      (product_id)   │
+│ find_cheapest_      track_product         get_history    │
+│ product(spec)        (product_id, $)      (product_id)   │
 └──────┼────────────────────┼────────────────────┼─────────┘
        │                    │                    │
        ▼                    ▼                    ▼
@@ -62,8 +62,8 @@ User:  "Cheapest Sony WH-1000XM5"
 │              │  │                 │  │                 │
 │ FAN-OUT:     │  │ price_events    │  │ generate_report │
 │ amazon_serp  │  │ tracked_products│  │  (product, hist,│
-│ walmart_     │─▶│                 │─▶│   sources=[...])│
-│   search     │  │  every retailer │  │ → published URL │
+│ walmart_pdp  │─▶│                 │─▶│   sources=[...])│
+│  (future)    │  │  every retailer │  │ → published URL │
 │ target_pdp   │  │  every check    │  │   on cited.md   │
 │ best_buy_pdp │  │                 │  │                 │
 │ home_depot   │  │                 │  │                 │
@@ -94,14 +94,19 @@ User:  "Cheapest Sony WH-1000XM5"
 User:  "Cheapest Sony WH-1000XM5"
 
 Hermes: parse_intent()
-  → { action: "find_cheapest", query: "Sony WH-1000XM5" }
-  → Nimble fan-out (parallel asyncio.gather):
-      amazon_serp(query)     → top ASIN → amazon_pdp(asin)
-      walmart_search(query)  → top URL  → walmart_pdp(url)
-      google_search(query + site:target.com)    → target_pdp(url)
-      google_search(query + site:bestbuy.com)   → best_buy_pdp(url)
-      google_search(query + site:homedepot.com) → home_depot_pdp(url)
-  ← [{retailer, price, url, title, in_stock, image}, ...]
+  → {
+      action: "find_cheapest_product",
+      brand: "Nike",
+      model: "Killshot 2",
+      color: "Sail/Lucid Green",
+      size: {"system": "US", "gender": "men", "value": 11.5},
+      source_scope: "amazon"
+    }
+  → Nimble Amazon V1:
+      amazon_serp(query + gender + size) → ranked ASIN candidates
+      amazon_pdp(parent_asin, html)      → dimensionValuesDisplayData
+      amazon_pdp(child_asin)             → verified price + seller
+  ← CheapestOfferResponse(best, all_offers, missing_sources, observation_ids)
   → ClickHouse: bulk INSERT price_events (one row per retailer)
   → Hermes: rank by price, filter out_of_stock, format
   → Telegram: ranked table with buy links
@@ -156,7 +161,7 @@ User: "Cheapest Jordan 4 Bred"
 
 | Tool | Role | Why it's compelling |
 |------|------|---------------------|
-| **Nimble** | Cross-retailer fan-out: Amazon, Walmart, Target, Best Buy, Home Depot via pre-built agents; eBay/StockX via on-the-fly `agent.generate()` | Showcases both pre-built agents AND AI-generated custom agents — Nimble's full surface |
+| **Nimble** | Amazon V1 fan-out for exact shoe variants; future Walmart via `google_search -> walmart_pdp`; future Target/Best Buy/Home Depot via URL resolution | Shows structured product extraction first, then expands cleanly to cross-retailer fan-out |
 | **ClickHouse** | `price_events` time-series across all retailers; analytical roll-ups (min/max per source, leaderboard queries) | Multi-source aggregation is exactly the analytical-query sweet spot |
 | **Senso.ai** | Cited price-drop reports published to cited.md, sourced from every retailer URL we hit | Closes the loop: not just ingestion — publishes grounded output back to the agent web |
 
@@ -178,25 +183,36 @@ import asyncio, os
 
 client = AsyncNimble(api_key=os.environ["NIMBLE_API_KEY"])
 
-async def find_cheapest(query: str) -> list[dict]:
-    # Step 1: discovery (search) in parallel
-    amazon_search, walmart_search = await asyncio.gather(
-        client.agent.run(agent="amazon_serp",     params={"query": query}),
-        client.agent.run(agent="walmart_search",  params={"query": query}),
-    )
-    asin       = amazon_search.data["results"][0]["asin"]
-    walmart_id = walmart_search.data["results"][0]["url"]
+async def find_cheapest_product(spec: dict) -> dict:
+    # Current PR: Amazon exact-variant path.
+    # Build query from brand/model/color plus shoe gender and size.
+    query = " ".join([
+        spec["brand"],
+        spec["model"],
+        spec.get("color", ""),
+        spec["size"]["gender"] + "s",
+        "size",
+        str(spec["size"]["value"]),
+    ]).strip()
 
-    # Step 2: PDPs in parallel (authoritative price)
-    pdps = await asyncio.gather(
-        client.agent.run(agent="amazon_pdp",   params={"asin": asin, "zip_code": "10001"}),
-        client.agent.run(agent="walmart_pdp",  params={"url": walmart_id}),
-        # target_pdp / best_buy_pdp / home_depot_pdp resolved via google_search first
+    amazon_search = await client.agent.run(
+        agent="amazon_serp",
+        params={"keyword": query, "zip_code": spec.get("postal_code", "10001")},
+        formats=["markdown", "html"],
     )
-    return [
-        {"retailer": "amazon",  "price": pdps[0].data["web_price"], "url": pdps[0].data["url"], "title": pdps[0].data["product_title"]},
-        {"retailer": "walmart", "price": pdps[1].data["price"],     "url": walmart_id},
-    ]
+    # Then parse ranked ASIN candidates, pull parent amazon_pdp HTML,
+    # resolve dimensionValuesDisplayData to child ASIN, and fetch child PDP.
+
+    # Future Walmart path:
+    # walmart_google = await client.agent.run(
+    #     agent="google_search",
+    #     params={"query": f"{query} site:walmart.com", "country": "US"},
+    # )
+    # walmart_id = extract_walmart_product_id(walmart_google.data["results"][0]["url"])
+    # walmart_pdp = await client.agent.run(
+    #     agent="walmart_pdp",
+    #     params={"product_id": walmart_id, "zipcode": spec.get("postal_code", "10001")},
+    # )
 ```
 
 **Stretch — custom resale agent generated at startup:**
@@ -261,12 +277,39 @@ Note: no per-retailer URL columns. URLs live in `price_events.url` — one produ
 
 ```python
 tools = [
-  find_cheapest(query: str, user_id: str) -> list[PriceQuote],   # PRIMARY — Nimble fan-out
+  find_cheapest_product(                                      # PRIMARY — explicit shoe spec for demo
+    brand: str,
+    model: str,
+    size: {"system": "US", "gender": "men", "value": float},
+    color: str | None = None,
+    condition: "new" | "used" | "ds" | "any" = "new",
+    postal_code: str = "10001",
+    source_scope: "amazon" | "retail" | "all" = "amazon",
+    query: str | None = None,
+    user_id: str | None = None,
+  ) -> CheapestOfferResponse,
   track_product(product_id: str, threshold: float, user_id: str),
   get_price_history(product_id: str, user_id: str) -> list[Price],
   generate_report(product_id: str, user_id: str) -> str,         # Senso → cited URL
   send_alert(user_id: str, message: str, url: str),              # Telegram
 ]
+```
+
+For the demo, Hermes should reason over the raw user message and call
+`find_cheapest_product` with explicit fields. Example:
+
+```json
+{
+  "brand": "Nike",
+  "model": "Killshot 2",
+  "color": "Sail/Lucid Green",
+  "size": { "system": "US", "gender": "men", "value": 11.5 },
+  "condition": "new",
+  "postal_code": "10001",
+  "source_scope": "amazon",
+  "query": "Find the cheapest Nike Killshot 2 Sail/Lucid Green men's size 11.5",
+  "user_id": "telegram:123"
+}
 ```
 
 ---
@@ -276,7 +319,7 @@ tools = [
 | Person | Focus | Deliverable |
 |--------|-------|-------------|
 | **Kishore** | Hermes agent in Daytona: intent parser, tool routing, polling loop, Telegram webhook | Working agent that calls the other 3 functions |
-| **Nimble (Matt)** | (1) Pre-built fan-out across 5 retailers; (2) generate eBay/StockX agents at boot for resale stretch | `find_cheapest(query) → list[PriceQuote]` |
+| **Nimble (Matt)** | Amazon exact-variant search now; Walmart/retail fan-out next | `find_cheapest_product(spec) → CheapestOfferResponse` |
 | **ClickHouse** | Schema + INSERT helpers + leaderboard query | `bulk_store(events)`, `get_history(product_id)`, `get_tracked()` |
 | **Senso** | Cited report from price history + retailer URLs | `generate_report(product, history) → published_url` |
 
@@ -290,16 +333,18 @@ tools = [
 |----------------------|---------------|
 | **Autonomy** | Fan-out happens without user choosing retailers; tracking polls without intervention |
 | **Idea** | Discovery beats tracking — users want "where do I buy this" before they want alerts |
-| **Technical implementation** | Parallel async fan-out across 5 pre-built Nimble agents + AI-generated custom agents for resale |
-| **Tool use** | Nimble (5 pre-built + 2 generated) + ClickHouse multi-source rollups + Senso cited reports |
-| **Presentation** | Demo: type product name → ranked retailer table appears in <5s → opt-in to track → drop alert with cited Senso URL |
+| **Technical implementation** | Exact shoe variant resolution: SERP candidate ranking → parent PDP variant map → child PDP buyable price |
+| **Tool use** | Nimble Amazon agents now; ClickHouse/Senso integration remains the next layer |
+| **Presentation** | Demo: type product name → Hermes structures shoe spec → verified Amazon buy link appears |
 
 ---
 
 ## MVP Scope (ship by 4:30 PM)
 
 - [ ] Telegram bot receives "find cheapest X" intent
-- [ ] Nimble fan-out: `amazon_serp` → `amazon_pdp` + `walmart_search` → `walmart_pdp` (parallel via `asyncio.gather`)
+- [x] Search tool: `find_cheapest_product` explicit shoe spec for Hermes
+- [x] Nimble Amazon path: `amazon_serp` → parent `amazon_pdp` HTML variant map → child `amazon_pdp`
+- [ ] Walmart path: `google_search site:walmart.com` → `walmart_pdp` variant resolution
 - [ ] ClickHouse bulk INSERT of price_events across retailers
 - [ ] Telegram returns ranked price table with buy links
 - [ ] Opt-in tracking: "track this @ $X" registers product + threshold

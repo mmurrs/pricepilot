@@ -1,157 +1,278 @@
-# Search — Cheapest-Offer Tool
+# Search — Cheapest Product Tool
 
-Tool the Hermes agent calls to answer **"find me the cheapest X."** Phased rollout:
+Tool the Hermes agent calls to answer **"find me the cheapest X."**
 
-| Phase | Tool name | Sources | Status |
-|---|---|---|---|
-| **v1** | `find_cheapest_amazon` | Amazon | first to ship |
-| **v2** | `find_cheapest_retail` | Amazon + Walmart | after v1 lands |
-| **v3** | `find_cheapest_all` | Amazon + Walmart + StockX | stretch |
+V1 is optimized for an explicit shoe demo: Hermes parses user language into
+brand/model/color/size, calls one tool, and receives a ranked offer response.
 
-eBay is out of scope for now — see [LEARNINGS.md](./LEARNINGS.md) for why.
+| Scope | Sources | Status |
+|---|---|---|
+| `source_scope="amazon"` | Amazon | implemented |
+| `source_scope="retail"` | Amazon + Walmart | stubbed |
+| `source_scope="all"` | Amazon + Walmart + StockX | stubbed |
 
 Files in this folder:
 
-- `README.md` — this file. What the tool calls look like.
-- `tools.py` — function-spec stubs (LLM tool-calling format) and Python signatures.
-- `LEARNINGS.md` — what we learned scraping Amazon/Walmart/StockX, watchouts, schema rationale.
+- `tools.py` — Hermes-facing tool schema + Python implementation.
+- `demo_find_cheapest.py` — local explicit demo runner.
+- `LEARNINGS.md` — scraping/Nimble watchouts and schema rationale.
 
-The shared ClickHouse schema lives in [`../clickhouse-setup.sql`](../clickhouse-setup.sql). The agent flow that calls these tools lives in [`../architecture.md`](../architecture.md).
+The shared ClickHouse schema lives in [`../clickhouse-setup.sql`](../clickhouse-setup.sql). The agent flow that calls this tool lives in [`../architecture.md`](../architecture.md).
 
 ---
 
-## Tool-call contract (LLM-facing)
+## Hermes-Facing Tool
 
-Every variant takes the same input and returns the same shape. The agent doesn't need to know how many platforms are queried — it just calls the tool.
+Hermes should expose exactly one search tool:
 
-### Input
+```python
+find_cheapest_product(
+    brand: str,
+    model: str,
+    size: {"system": "US", "gender": "men", "value": 11.5},
+    category: "shoes" = "shoes",
+    color: str | None = None,
+    condition: "new" | "used" | "ds" | "any" = "new",
+    postal_code: str = "10001",
+    source_scope: "amazon" | "retail" | "all" = "amazon",
+    query: str | None = None,
+    user_id: str | None = None,
+) -> CheapestOfferResponse
+```
+
+For the demo, use `source_scope="amazon"` and require explicit `brand`, `model`,
+and `size`. `color` is optional in the schema but should be present for shoes
+when the user gives it, because it drastically reduces ambiguity.
+
+### Python Integration
+
+Hermes can import the schema and function directly:
+
+```python
+from search.tools import TOOL_SCHEMAS, find_cheapest_product
+
+# Register this with the LLM/tool router.
+tools = TOOL_SCHEMAS
+
+# Call after Hermes has parsed the user message.
+result = await find_cheapest_product(
+    brand="Nike",
+    model="Killshot 2",
+    color="Sail/Lucid Green",
+    size={"system": "US", "gender": "men", "value": 11.5},
+    condition="new",
+    postal_code="10001",
+    source_scope="amazon",
+    query="Find the cheapest Nike Killshot 2 Sail/Lucid Green men's size 11.5",
+    user_id="telegram:123",
+)
+```
+
+Hermes should treat `result.best is None` as "no verified buyable offer found."
+Do not present unverified SERP prices.
+
+### Example Tool Call
 
 ```json
 {
   "brand": "Nike",
   "model": "Killshot 2",
   "color": "Sail/Lucid Green",
-  "size_us_men": 11.5,
-  "condition": "new"
+  "size": { "system": "US", "gender": "men", "value": 11.5 },
+  "condition": "new",
+  "postal_code": "10001",
+  "source_scope": "amazon",
+  "query": "Nike Killshot 2 Sail/Lucid Green size 11.5",
+  "user_id": "telegram:123"
 }
 ```
 
-- `brand` (required) — manufacturer
-- `model` (required) — product line
-- `color` (optional but recommended) — exact-color search reduces ambiguity dramatically (see [LEARNINGS.md](./LEARNINGS.md) §5)
-- `size_us_men` (required for sized items) — `Decimal(4,1)`, e.g. `11.5`
-- `condition` (optional, default `"new"`) — `"new" | "used" | "ds"`
-
-### Output
+### Example Response
 
 ```json
 {
-  "spec": { "brand": "...", "model": "...", "color": "...", "size_us_men": 11.5 },
+  "spec": {
+    "brand": "Nike",
+    "model": "Killshot 2",
+    "size": { "system": "US", "gender": "men", "value": 11.5 },
+    "category": "shoes",
+    "color": "Sail/Lucid Green",
+    "condition": "new",
+    "postal_code": "10001",
+    "source_scope": "amazon"
+  },
   "best": {
     "source": "amazon",
-    "price": 77.60,
+    "price": 74.96,
+    "shipping_cost": 0,
+    "total_price": 74.96,
     "currency": "USD",
-    "url": "https://www.amazon.com/dp/B0DVFCSZGR",
+    "url": "https://www.amazon.com/dp/B07SSV4CTT",
     "in_stock": true,
-    "seller": "Amazon.com",
-    "shipping_cost": 0.00,
-    "observed_at": "2026-05-23T14:32:11Z"
+    "seller": "Liquidation Stations",
+    "title": "Nike Mens Killshot 2 Leather",
+    "confidence": 0.75,
+    "observed_at": "2026-05-23T18:48:02+00:00"
   },
   "all_offers": [
-    { "source": "amazon",  "price": 77.60, "url": "...", "in_stock": true,  ... },
-    { "source": "walmart", "price": 82.99, "url": "...", "in_stock": true,  ... },
-    { "source": "stockx",  "price": 95.00, "url": "...", "in_stock": true,  ... }
+    {
+      "source": "amazon",
+      "price": 74.96,
+      "shipping_cost": 0,
+      "total_price": 74.96,
+      "currency": "USD",
+      "url": "https://www.amazon.com/dp/B07SSV4CTT",
+      "in_stock": true,
+      "seller": "Liquidation Stations",
+      "title": "Nike Mens Killshot 2 Leather"
+    }
   ],
-  "observation_ids": ["uuid-1", "uuid-2", "uuid-3"]
+  "missing_sources": [],
+  "observation_ids": ["local:..."]
 }
 ```
 
-`observation_ids` are the row IDs persisted to ClickHouse so the agent can request a price-history chart later.
+`observation_ids` are ClickHouse row IDs when persistence is configured. During
+demo runs without ClickHouse, the tool returns `local:<uuid>` so Hermes can keep
+moving.
 
 ---
 
-## Phase 1 — `find_cheapest_amazon`
+## Amazon V1 Implementation
 
-Single-platform. Validates the spec → child-SKU → price → ClickHouse pipeline end to end.
+The implemented Amazon path is:
 
-```python
-def find_cheapest_amazon(
-    brand: str,
-    model: str,
-    size_us_men: float,
-    color: str | None = None,
-    condition: str = "new",
-) -> CheapestOfferResponse:
-    ...
+1. Build a search query from brand/model/color plus shoe gender and size.
+   Example: `On Cloud running shoes mens size 11`.
+2. `amazon_serp(keyword=query, zip_code=postal_code, formats=["markdown", "html"])`.
+3. Parse SERP markdown/html for ranked candidate ASINs.
+4. Try the top ranked candidates, not just the first one.
+5. `amazon_pdp(asin=color_asin, formats=["html"])`.
+6. Parse Amazon `dimensionValuesDisplayData` from PDP HTML.
+7. Resolve the exact child ASIN where `(size, color)` matches the request.
+8. `amazon_pdp(asin=child_asin, zip_code=postal_code)`.
+9. Return the cheapest verified offer that still matches brand/model/size/color.
+
+Hard rule: never return a SERP price as the final price. SERP price is often for
+the default-rendered size, not the requested size.
+
+---
+
+## Walmart Status
+
+This PR does **not** implement Walmart yet.
+
+The public tool already reserves `source_scope="retail"` for Amazon + Walmart,
+but `_walmart_offer()` is intentionally a stub. If Hermes calls with
+`source_scope="retail"` today, the response can still include a valid Amazon
+offer, and Walmart appears under `missing_sources`:
+
+```json
+{
+  "best": { "source": "amazon", "price": 74.96 },
+  "missing_sources": [
+    { "source": "walmart", "reason": "not_implemented" }
+  ]
+}
 ```
 
-**Internal flow:**
+The Walmart implementation path should be:
 
-1. `nimble.amazon_serp(query=f"{brand} {model} {color or ''}".strip())` → list of parent ASINs.
-2. Filter to the parent whose title best matches `color` (string overlap on normalized tokens).
-3. `nimble.amazon_pdp(asin=parent_asin)` → pull `dimensionValuesDisplayData`.
-4. Find the child ASIN where `(size, color) == (size_us_men, color)`.
-5. `nimble.amazon_pdp(asin=child_asin, zip_code="10001")` → buybox price + in-stock.
-6. `clickhouse.insert("listings_observations", row)`.
-7. Return the offer.
+1. `google_search(query + " site:walmart.com", country="US")`.
+2. Extract Walmart `/ip/.../<product_id>` from the top matching result.
+3. `walmart_pdp(product_id=..., zipcode=postal_code)`.
+4. Parse Walmart variant data for the requested shoe size/color.
+5. Fetch the child item PDP and return a normal `Offer`.
 
-**Hard rule:** never call `nimble_extract` on an Amazon PDP — always use `amazon_pdp` (structured). See [LEARNINGS.md](./LEARNINGS.md) §1.
+The older docs mentioned a `walmart_search` agent. The live probe in
+`test_nimble.py` found that this agent is not currently available in our Nimble
+account, so use `google_search -> walmart_pdp` instead.
 
----
+### Walmart / Retail Scope Example
 
-## Phase 2 — `find_cheapest_retail`
+This is the call shape Hermes will use once Walmart is implemented:
 
-Same input/output as Phase 1. Internally fans out Amazon + Walmart in parallel via `asyncio.gather`, persists both observations, returns the cheaper one as `best`.
-
-```python
-async def find_cheapest_retail(...) -> CheapestOfferResponse:
-    amazon, walmart = await asyncio.gather(
-        _amazon_offer(spec),
-        _walmart_offer(spec),
-    )
-    offers = [o for o in (amazon, walmart) if o and o.in_stock]
-    return _rank_and_persist(spec, offers)
+```json
+{
+  "brand": "Nike",
+  "model": "Killshot 2",
+  "color": "Sail/Lucid Green",
+  "size": { "system": "US", "gender": "men", "value": 11.5 },
+  "condition": "new",
+  "postal_code": "10001",
+  "source_scope": "retail",
+  "query": "Nike Killshot 2 Sail/Lucid Green size 11.5",
+  "user_id": "telegram:123"
+}
 ```
 
-**Walmart variant resolution:** Walmart's parent product page exposes `variantFieldsMap` (color × size → `item_id`). Same shape as Amazon's `dimensionValuesDisplayData`, different field names.
+Current PR behavior: Amazon is attempted, Walmart is reported as
+`not_implemented`.
 
 ---
 
-## Phase 3 — `find_cheapest_all`
+## Local Demo
 
-Adds StockX. StockX is bot-walled — no clean API — so this phase only runs when the spec is plausibly a sneaker (brand in `{Nike, Adidas, Jordan, New Balance, Asics, ...}`).
-
-```python
-async def find_cheapest_all(...) -> CheapestOfferResponse:
-    coros = [_amazon_offer(spec), _walmart_offer(spec)]
-    if _is_likely_sneaker(spec):
-        coros.append(_stockx_offer(spec))
-    results = await asyncio.gather(*coros, return_exceptions=True)
-    offers = [o for o in results if isinstance(o, Offer) and o.in_stock]
-    return _rank_and_persist(spec, offers)
+```bash
+cd /Users/matt/agenticenghack
+set -a && source .env.local && set +a
+.venv/bin/python search/demo_find_cheapest.py \
+  --brand Nike \
+  --model "Killshot 2" \
+  --color "Sail/Lucid Green" \
+  --size 11.5
 ```
 
-**StockX gotchas** (see [LEARNINGS.md](./LEARNINGS.md) §11):
+Validated live on 2026-05-23:
 
-- Use the unofficial GraphQL by product URN, not HTML scraping.
-- Lowest "ask" ≠ buybox — it's the cheapest *seller offer*, no Prime-style guarantees.
-- Selectors break often. Cache aggressively, fail soft (return `None`, not exception).
-- `condition="used"` is meaningless on StockX — everything is treated as new/DS. Skip StockX if `condition != "new"`.
+```text
+Amazon: Nike Mens Killshot 2 Leather
+Size/color: US men 11.5, Sail/Lucid Green
+Best total: $74.96
+URL: https://www.amazon.com/dp/B07SSV4CTT
+```
+
+Also validated:
+
+```bash
+.venv/bin/python search/demo_find_cheapest.py \
+  --brand On \
+  --model "Cloud running shoes" \
+  --size 11
+```
+
+```text
+Amazon: On Men's Cloud 6 Sneakers
+Size: US men 11
+Best total: $160.00
+URL: https://www.amazon.com/dp/B0F7D5VHMP
+```
 
 ---
 
-## ClickHouse persistence
+## Hermes Responsibilities
 
-Every successful offer-resolution writes one row to `listings_observations` (schema in [`../clickhouse-setup.sql`](../clickhouse-setup.sql) — note: the team's current schema is `scraping.amazon_products` for v1; expand to `listings_observations` when v2 lands).
+Hermes should:
 
-Don't dedupe. Price history is the point. Use `argMax(price, observed_at)` for "current price."
+1. Parse user intent into the explicit fields above.
+2. Ask a follow-up if required demo fields are missing, especially `size`.
+3. Pass `user_id` and original `query` for traceability.
+4. Use `source_scope="amazon"` for the current demo.
+5. Call `find_cheapest_product`.
+6. Present `best` first, then optionally summarize `all_offers` and `missing_sources`.
 
----
+Field guidance:
 
-## Open contract questions
+- `size.value` is required for shoes.
+- `size.gender` should be explicit. Defaulting to `"men"` is acceptable only when the user says "men's" or the demo prompt implies it.
+- `color` is optional but should be filled when present in the user request.
+- `postal_code` defaults to `10001`; set it from the user's location when available.
+- If `best` is `null`, tell the user no verified in-stock offer was found and ask for color/model refinement.
 
-- **Caching:** if two callers ask for the same `(spec)` within 5 minutes, do we re-scrape or return the cached row? Default: re-scrape (freshness wins on hackathon day).
-- **Failure mode:** if Amazon returns OK but Walmart 500s, return Amazon-only or fail? Default: return what we have, mark missing sources in response.
-- **Color matching:** fuzzy or exact? See LEARNINGS §8 — leaning on a `color_aliases` table built incrementally.
+For the demo, a good user prompt is:
 
-See [LEARNINGS.md](./LEARNINGS.md) for the full set of watchouts before implementing.
+```text
+Find the cheapest Nike Killshot 2 Sail/Lucid Green in men's size 11.5
+```
+
+Hermes should structure that into the example JSON call above.
