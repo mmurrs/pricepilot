@@ -553,7 +553,7 @@
 
       <section class="sec">
         <p class="lede">Name a product. Get a <em>printed receipt</em> back with the cheapest <span class="underline">verified</span> buy link.</p>
-        <p class="body-copy">Today PricePilot resolves the exact variant on Amazon — SERP, parent PDP, child PDP — and returns a verified buyable offer with real price, real stock, real seller. Walmart and Target are next on the line.</p>
+        <p class="body-copy">Today PricePilot resolves the exact variant on Amazon and Walmart — SERP, parent PDP, child PDP — and returns the cheapest verified buyable offer with real price, real stock, real seller. Target's next on the line.</p>
         <div style="margin-top: 1rem; padding: 0.75rem; background: var(--paper-deep); border: 1px dashed var(--line-soft); border-radius: 4px; font-size: 0.8125rem; color: var(--ink-soft); font-style: italic;">
           <span style="font-style: normal; font-weight: 700; color: var(--stamp); margin-right: 0.375rem;">psst—</span>Every price you get was checked <em>just for you</em>. No stale SERP guesses. Just the real buyable price, fresh off the shelf.
         </div>
@@ -607,7 +607,7 @@
         <p class="sec-h">The endpoint <span class="num">[1 of 1]</span></p>
         <div style="margin-bottom: 0.875rem; font-size: 0.6875rem; color: var(--ink-soft); display: flex; align-items: center; gap: 0.5rem;">
           <span style="display: inline-block; width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: blink 1.6s infinite;"></span>
-          Live now — checking Amazon every request
+          Live now — checking Amazon &amp; Walmart every request
         </div>
         <div class="endpoint-card">
           <div class="corner tl"></div>
@@ -622,8 +622,8 @@
           <p class="endpoint-meta">Pass an explicit product spec — brand, model, variant attributes (color, size, storage). PricePilot returns the cheapest verified buyable offer plus a stable <code class="inline">product_id</code> your agent can reuse.</p>
           <div class="retailers">
             <span class="retail-badge live">Amazon &mdash; live</span>
-            <span class="retail-badge queue">Walmart &mdash; next</span>
-            <span class="retail-badge queue">Target &mdash; planned</span>
+            <span class="retail-badge live">Walmart &mdash; live</span>
+            <span class="retail-badge queue">Target &mdash; next</span>
           </div>
         </div>
       </section>
@@ -640,7 +640,7 @@
           </li>
           <li>
             <span class="num">02.</span>
-            <span class="what"><strong>We resolve the exact variant on Amazon.</strong> SERP &rarr; parent PDP &rarr; child PDP, so the offer matches your spec &mdash; not a near-miss.</span>
+            <span class="what"><strong>We resolve the exact variant on Amazon and Walmart.</strong> SERP &rarr; parent PDP &rarr; child PDP on each, in parallel, so the offers match your spec &mdash; not a near-miss.</span>
           </li>
           <li>
             <span class="num">03.</span>
@@ -681,9 +681,14 @@
             <span class="val">Sail/Lucid &middot; M 11.5</span>
           </div>
           <div class="line-row total-row">
-            <span class="label">RETAILER</span>
+            <span class="label">AMAZON</span>
             <span class="leader"></span>
-            <span class="val">Amazon (verified)</span>
+            <span class="val" style="text-decoration: line-through; color: var(--muted); font-weight: 400;">$94.99</span>
+          </div>
+          <div class="line-row total-row">
+            <span class="label">WALMART</span>
+            <span class="leader"></span>
+            <span class="val green">$89.97 ★</span>
           </div>
           <div class="line-row total-row">
             <span class="label">STOCK</span>
@@ -711,18 +716,19 @@
 <pre>{
   "product_id": "nike-killshot-2",
   "best": {
-    "source": "amazon",
+    "source": "walmart",
     "price": 89.97,
     "currency": "USD",
     "in_stock": true,
-    "seller": "Amazon.com",
-    "url": "https://www.amazon.com/dp/B0XXXXXXX",
+    "seller": "Walmart",
+    "url": "https://www.walmart.com/ip/XXXXXXXX",
     "variant": { "color": "Sail/Lucid Green", "size": "11.5" }
   },
   "all_offers": [
-    { "source": "amazon", "price": 89.97, "in_stock": true }
+    { "source": "walmart", "price": 89.97, "in_stock": true },
+    { "source": "amazon",  "price": 94.99, "in_stock": true }
   ],
-  "missing_sources": ["walmart", "target"],
+  "missing_sources": ["target"],
   "checked_at": "2026-05-23T15:42:11Z"
 }</pre>
       </section>
