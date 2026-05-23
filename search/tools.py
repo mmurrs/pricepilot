@@ -40,7 +40,7 @@ from urllib.parse import unquote
 Category = Literal["shoes", "electronics", "toys", "generic"]
 Condition = Literal["new", "used", "ds", "any"]
 Gender = Literal["men", "women", "kids", "unisex"]
-Source = Literal["amazon", "walmart", "stockx"]
+Source = Literal["amazon", "walmart", "stockx", "kayak", "google_flights"]
 SourceScope = Literal["amazon", "retail", "all"]
 
 CLICKHOUSE_PRICE_EVENTS_COLUMNS = (
@@ -187,6 +187,33 @@ _INPUT_SCHEMA = {
     "required": ["brand", "model"],
 }
 
+_FLIGHT_INPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "origin": {
+            "type": "string",
+            "description": "IATA airport code, e.g. 'JFK'. Three uppercase letters.",
+        },
+        "destination": {
+            "type": "string",
+            "description": "IATA airport code, e.g. 'LAX'.",
+        },
+        "depart_date": {
+            "type": "string",
+            "description": "Departure date in YYYY-MM-DD. One-way only in v1.",
+        },
+        "query": {
+            "type": "string",
+            "description": "Original user query for traceability.",
+        },
+        "user_id": {
+            "type": "string",
+            "description": "Stable Hermes/Telegram user id for ClickHouse history.",
+        },
+    },
+    "required": ["origin", "destination", "depart_date"],
+}
+
 TOOL_SCHEMAS = [
     {
         "name": "find_cheapest_product",
@@ -196,6 +223,16 @@ TOOL_SCHEMAS = [
             "shoe variant is requested. V1 defaults to Amazon only via source_scope='amazon'."
         ),
         "input_schema": _INPUT_SCHEMA,
+    },
+    {
+        "name": "find_cheapest_flight",
+        "description": (
+            "Find the cheapest currently bookable one-way economy flight for a "
+            "given origin (IATA), destination (IATA), and depart_date (YYYY-MM-DD). "
+            "Fans out across Google Flights and Kayak via Nimble. V1 hardcodes "
+            "cabin='economy' and passengers=1."
+        ),
+        "input_schema": _FLIGHT_INPUT_SCHEMA,
     },
 ]
 
@@ -1686,3 +1723,588 @@ def _offer_to_dict(offer: Offer) -> dict[str, Any]:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+# ===========================================================================
+# FLIGHTS — D1 hybrid: shared price_events log, separate tracked_flights table
+# ===========================================================================
+#
+# Offer dataclass is reused with flight-specific semantics:
+#   offer.source        = 'kayak' | 'google_flights'
+#   offer.seller        = OTA name (same as source)
+#   offer.shipping_cost = taxes + fees (additive to .price for total)
+#   offer.title         = "UA 123 · 1 stop · 5h 32m" free text
+#   offer.in_stock      = fare still bookable at quoted price
+#
+# Nimble integration (D3): register custom OTA agents ONCE at startup, then
+# call them like any pre-built agent. The resolver stubs below describe the
+# exact agent.generate() call that needs to run before find_cheapest_flight
+# returns live offers. Until then, _run_resolvers catches NotImplementedError
+# and surfaces both OTAs as missing_sources.
+
+_IATA_RE = re.compile(r"^[A-Z]{3}$")
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+@dataclass
+class FlightSpec:
+    origin: str           # IATA, e.g. 'JFK'
+    destination: str      # IATA, e.g. 'LAX'
+    depart_date: str      # 'YYYY-MM-DD'
+    cabin: str = "economy"
+    passengers: int = 1
+    query: Optional[str] = None
+    user_id: Optional[str] = None
+
+    @property
+    def flight_id(self) -> str:
+        return f"flight:{self.origin}-{self.destination}:{self.depart_date}"
+
+    @property
+    def product_name(self) -> str:
+        return f"{self.origin} → {self.destination} {self.depart_date}"
+
+
+def build_flight_spec(
+    *,
+    origin: str,
+    destination: str,
+    depart_date: str,
+    query: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> FlightSpec:
+    """Normalize Hermes JSON into a FlightSpec and raise ValueError on bad input."""
+    origin_norm = _require_text(origin, "origin").upper()
+    destination_norm = _require_text(destination, "destination").upper()
+    depart_norm = _require_text(depart_date, "depart_date")
+
+    if not _IATA_RE.match(origin_norm):
+        raise ValueError("origin must be a 3-letter IATA code")
+    if not _IATA_RE.match(destination_norm):
+        raise ValueError("destination must be a 3-letter IATA code")
+    if origin_norm == destination_norm:
+        raise ValueError("origin and destination must differ")
+    if not _DATE_RE.match(depart_norm):
+        raise ValueError("depart_date must be YYYY-MM-DD")
+    try:
+        datetime.strptime(depart_norm, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError("depart_date is not a valid calendar date") from exc
+
+    return FlightSpec(
+        origin=origin_norm,
+        destination=destination_norm,
+        depart_date=depart_norm,
+        query=_optional_text(query),
+        user_id=_optional_text(user_id),
+    )
+
+
+async def find_cheapest_flight(
+    *,
+    origin: str,
+    destination: str,
+    depart_date: str,
+    query: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> CheapestOfferResponse:
+    spec = build_flight_spec(
+        origin=origin,
+        destination=destination,
+        depart_date=depart_date,
+        query=query,
+        user_id=user_id,
+    )
+    resolvers: list[tuple[Source, Any]] = [
+        ("google_flights", _google_flights_offer(spec)),
+        ("kayak", _kayak_flight_offer(spec)),
+    ]
+    return _rank_and_persist_flights(spec, await _run_resolvers(resolvers))
+
+
+_FLIGHT_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "airline": {"type": "string"},
+                    "flight_number": {"type": "string"},
+                    "departure_time": {"type": "string"},
+                    "arrival_time": {"type": "string"},
+                    "stops": {"type": "integer"},
+                    "total_duration_minutes": {"type": "integer"},
+                    "price": {"type": "number"},
+                    "taxes_and_fees": {"type": "number"},
+                    "deep_link": {"type": "string"},
+                },
+            },
+        }
+    },
+}
+
+_FLIGHT_EXTRACT_PROMPT = (
+    "Extract every itinerary card on the page. Per card: airline, "
+    "flight_number, departure_time, arrival_time, stops (int — 0 for nonstop), "
+    "total_duration_minutes (int), price (number, USD, base fare only), "
+    "taxes_and_fees (number, USD; 0 if already included in price), "
+    "deep_link (absolute URL to the booking page)."
+)
+
+
+def _google_flights_url(spec: FlightSpec) -> str:
+    from urllib.parse import quote
+    query = f"Flights from {spec.origin} to {spec.destination} on {spec.depart_date}"
+    return f"https://www.google.com/travel/flights?q={quote(query)}"
+
+
+def _kayak_url(spec: FlightSpec) -> str:
+    return (
+        f"https://www.kayak.com/flights/"
+        f"{spec.origin}-{spec.destination}/{spec.depart_date}"
+        f"?sort=price_a"
+    )
+
+
+async def _google_flights_offer(spec: FlightSpec) -> Optional[Offer]:
+    """
+    Resolve cheapest Google Flights itinerary for spec. Requires the
+    `google_flights_search` Nimble agent to be registered — call
+    register_flight_agents() once at startup.
+    """
+    return await _nimble_flight_offer(
+        source="google_flights",
+        agent_name="google_flights_search",
+        url=_google_flights_url(spec),
+    )
+
+
+async def _kayak_flight_offer(spec: FlightSpec) -> Optional[Offer]:
+    """
+    Resolve cheapest Kayak itinerary for spec. Requires the `kayak_search`
+    Nimble agent to be registered — call register_flight_agents() once at
+    startup.
+    """
+    return await _nimble_flight_offer(
+        source="kayak",
+        agent_name="kayak_search",
+        url=_kayak_url(spec),
+    )
+
+
+async def _nimble_flight_offer(
+    *,
+    source: Source,
+    agent_name: str,
+    url: str,
+) -> Optional[Offer]:
+    resp = await _nimble_agent_run(
+        agent_name,
+        params={"url": url},
+        formats=["html"],
+    )
+    data = _nimble_data(resp)
+    raw_results = data.get("results") if isinstance(data, dict) else None
+    if not isinstance(raw_results, list) or not raw_results:
+        return None
+
+    best: Optional[tuple[float, dict[str, Any]]] = None
+    for entry in raw_results:
+        if not isinstance(entry, dict):
+            continue
+        price = _to_float(entry.get("price"))
+        if price is None:
+            continue
+        fees = _to_float(entry.get("taxes_and_fees")) or 0.0
+        total = price + fees
+        if best is None or total < best[0]:
+            best = (total, entry)
+
+    if best is None:
+        return None
+
+    total, entry = best
+    price = _to_float(entry.get("price")) or 0.0
+    fees = _to_float(entry.get("taxes_and_fees")) or 0.0
+    deep_link = str(entry.get("deep_link") or url)
+    airline = str(entry.get("airline") or "").strip()
+    flight_no = str(entry.get("flight_number") or "").strip()
+    stops = entry.get("stops")
+    duration_min = entry.get("total_duration_minutes")
+
+    return Offer(
+        source=source,
+        title=_flight_title(airline, flight_no, stops, duration_min),
+        price=price,
+        shipping_cost=fees,
+        total_price=total,
+        currency="USD",
+        url=deep_link,
+        in_stock=True,
+        condition="new",
+        seller=source,
+        observed_at=_now_iso(),
+        confidence=1.0,
+    )
+
+
+def _flight_title(
+    airline: str,
+    flight_no: str,
+    stops: Any,
+    duration_min: Any,
+) -> str:
+    parts: list[str] = []
+    head = " ".join(part for part in [airline, flight_no] if part).strip()
+    if head:
+        parts.append(head)
+    if isinstance(stops, int):
+        parts.append("nonstop" if stops == 0 else f"{stops} stop" if stops == 1 else f"{stops} stops")
+    if isinstance(duration_min, int) and duration_min > 0:
+        parts.append(f"{duration_min // 60}h {duration_min % 60:02d}m")
+    return " · ".join(parts) or "flight"
+
+
+async def register_flight_agents(
+    *,
+    timeout_seconds: float = 600.0,
+    poll_interval: float = 5.0,
+) -> dict[str, str]:
+    """
+    Idempotently register and publish the Nimble custom agents this module
+    depends on. Call ONCE at process startup. Returns a status map per agent:
+      'published'      — newly generated and published
+      'already_exists' — agent.get returned the published agent already
+      'error: <step>: <msg>' — generate/poll/publish failed; caller should log
+
+    Nimble's lifecycle is `generate → poll get_generation until completed →
+    publish`. The previous one-shot generate() call left agents as un-published
+    drafts and agent.run 404'd at runtime.
+    """
+    api_key = os.environ.get("NIMBLE_API_KEY")
+    if not api_key:
+        raise RuntimeError("NIMBLE_API_KEY is required to register flight agents")
+
+    from nimble_python import AsyncNimble
+    client = AsyncNimble(api_key=api_key)
+
+    sample_spec = FlightSpec(origin="JFK", destination="LAX", depart_date="2026-07-15")
+    targets = [
+        ("google_flights_search", _google_flights_url(sample_spec)),
+        ("kayak_search", _kayak_url(sample_spec)),
+    ]
+
+    results = await asyncio.gather(
+        *(
+            _ensure_agent_published(
+                client,
+                agent_name=name,
+                url=url,
+                timeout_seconds=timeout_seconds,
+                poll_interval=poll_interval,
+            )
+            for name, url in targets
+        ),
+        return_exceptions=True,
+    )
+    status: dict[str, str] = {}
+    for (name, _), result in zip(targets, results):
+        if isinstance(result, str):
+            status[name] = result
+        else:
+            status[name] = f"error: unexpected: {result!r}"
+    return status
+
+
+async def _ensure_agent_published(
+    client: Any,
+    *,
+    agent_name: str,
+    url: str,
+    timeout_seconds: float,
+    poll_interval: float,
+) -> str:
+    # 1. Idempotency: agent.get 200s when an agent_name is already published.
+    try:
+        await client.agent.get(agent_name)
+        return "already_exists"
+    except Exception:
+        pass  # 404 is the common case; fall through to generate.
+
+    # 2. Kick off generation.
+    try:
+        gen = await client.agent.generate(
+            url=url,
+            prompt=_FLIGHT_EXTRACT_PROMPT,
+            agent_name=agent_name,
+            output_schema=_FLIGHT_OUTPUT_SCHEMA,
+        )
+    except Exception as exc:
+        return f"error: generate: {exc}"
+
+    generation_id = getattr(gen, "id", None)
+    version_id = getattr(gen, "generated_version_id", None)
+    gen_status = (getattr(gen, "status", "") or "").lower()
+    if not generation_id:
+        return "error: generate: missing generation id in response"
+
+    # 3. Poll until the generation reaches a terminal state.
+    if gen_status not in {"completed", "succeeded"} or not version_id:
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + timeout_seconds
+        while loop.time() < deadline:
+            await asyncio.sleep(poll_interval)
+            try:
+                latest = await client.agent.get_generation(generation_id)
+            except Exception as exc:
+                return f"error: poll: {exc}"
+            gen_status = (getattr(latest, "status", "") or "").lower()
+            version_id = getattr(latest, "generated_version_id", None) or version_id
+            if gen_status in {"completed", "succeeded"} and version_id:
+                break
+            if gen_status in {"failed", "error", "errored"}:
+                err = getattr(latest, "error", None) or "unknown"
+                return f"error: generation {gen_status}: {err}"
+        else:
+            return f"error: poll: timed out after {timeout_seconds:.0f}s (last_status={gen_status or 'unknown'})"
+
+    if not version_id:
+        return "error: poll: no generated_version_id"
+
+    # 4. Publish — this is the step the old code was missing.
+    try:
+        await client.agent.publish(agent_name, version_id=version_id)
+    except Exception as exc:
+        return f"error: publish: {exc}"
+    return "published"
+
+
+def _rank_and_persist_flights(
+    spec: FlightSpec,
+    resolved: tuple[list[Offer], list[MissingSource]],
+) -> CheapestOfferResponse:
+    offers, missing_sources = resolved
+    sorted_offers = sorted(offers, key=_offer_total)
+    observation_ids = [_persist_flight_observation(spec, o) for o in sorted_offers]
+    return CheapestOfferResponse(
+        spec=spec,  # CheapestOfferResponse.spec is ProductSpec | FlightSpec at runtime
+        best=sorted_offers[0] if sorted_offers else None,
+        all_offers=sorted_offers,
+        missing_sources=missing_sources,
+        observation_ids=observation_ids,
+    )
+
+
+def _persist_flight_observation(spec: FlightSpec, offer: Offer) -> str:
+    """
+    Insert one row into pricepilot.flight_events. Returns the row id.
+    Demo-safe: returns a local id when ClickHouse credentials or
+    clickhouse-connect are unavailable. Writes to a flight-only table so
+    the product price_events log is never touched.
+    """
+    observation_id = str(uuid.uuid4())
+    if not os.environ.get("CLICKHOUSE_HOST"):
+        return f"local:{observation_id}"
+
+    try:
+        import clickhouse_connect
+    except ModuleNotFoundError:
+        return f"local:{observation_id}"
+
+    client = clickhouse_connect.get_client(
+        host=os.environ["CLICKHOUSE_HOST"],
+        port=int(os.environ.get("CLICKHOUSE_PORT", "8443")),
+        username=os.environ.get("CLICKHOUSE_USER", "nimble_loader"),
+        password=os.environ["CLICKHOUSE_PASSWORD"],
+        database="pricepilot",
+        secure=True,
+    )
+    client.insert(
+        "pricepilot.flight_events",
+        [
+            [
+                spec.user_id or "",
+                spec.flight_id,
+                spec.origin,
+                spec.destination,
+                spec.depart_date,
+                offer.url,
+                offer.source,
+                _offer_total(offer),
+                offer.currency,
+            ]
+        ],
+        column_names=[
+            "user_id",
+            "flight_id",
+            "origin",
+            "destination",
+            "depart_date",
+            "url",
+            "source",
+            "price",
+            "currency",
+        ],
+    )
+    return observation_id
+
+
+def track_flight(
+    *,
+    user_id: str,
+    spec: FlightSpec,
+    threshold: float,
+) -> None:
+    """
+    Register a flight on the watchlist. expires_at is depart_date 00:00 UTC —
+    the poller stops checking after this. Demo-safe: no-op when credentials
+    are unavailable.
+    """
+    if not os.environ.get("CLICKHOUSE_HOST"):
+        return
+
+    try:
+        import clickhouse_connect
+    except ModuleNotFoundError:
+        return
+
+    expires_at = datetime.strptime(spec.depart_date, "%Y-%m-%d").replace(
+        tzinfo=timezone.utc
+    )
+
+    client = clickhouse_connect.get_client(
+        host=os.environ["CLICKHOUSE_HOST"],
+        port=int(os.environ.get("CLICKHOUSE_PORT", "8443")),
+        username=os.environ.get("CLICKHOUSE_USER", "nimble_loader"),
+        password=os.environ["CLICKHOUSE_PASSWORD"],
+        database="pricepilot",
+        secure=True,
+    )
+    client.insert(
+        "pricepilot.tracked_flights",
+        [
+            [
+                user_id,
+                spec.flight_id,
+                spec.origin,
+                spec.destination,
+                spec.depart_date,
+                spec.cabin,
+                spec.passengers,
+                threshold,
+                expires_at,
+                1,
+            ]
+        ],
+        column_names=[
+            "user_id",
+            "flight_id",
+            "origin",
+            "destination",
+            "depart_date",
+            "cabin",
+            "passengers",
+            "threshold",
+            "expires_at",
+            "active",
+        ],
+    )
+
+
+def get_flight_history(
+    *,
+    flight_id: str,
+    user_id: Optional[str] = None,
+    days: int = 7,
+) -> list[dict[str, Any]]:
+    """
+    Per-OTA min/max/latest price summary for a tracked flight over the last
+    `days` days. Returns one row per source. Demo-safe: returns [] when
+    ClickHouse credentials or clickhouse-connect are unavailable.
+    """
+    if not os.environ.get("CLICKHOUSE_HOST"):
+        return []
+
+    try:
+        import clickhouse_connect
+    except ModuleNotFoundError:
+        return []
+
+    client = clickhouse_connect.get_client(
+        host=os.environ["CLICKHOUSE_HOST"],
+        port=int(os.environ.get("CLICKHOUSE_PORT", "8443")),
+        username=os.environ.get("CLICKHOUSE_USER", "nimble_loader"),
+        password=os.environ["CLICKHOUSE_PASSWORD"],
+        database="pricepilot",
+        secure=True,
+    )
+    params: dict[str, Any] = {"flight_id": flight_id, "days": int(days)}
+    where = "flight_id = {flight_id:String} AND timestamp > now() - INTERVAL {days:UInt32} DAY"
+    if user_id:
+        where += " AND user_id = {user_id:String}"
+        params["user_id"] = user_id
+
+    query = f"""
+        SELECT
+            source,
+            min(price)                          AS min_price,
+            max(price)                          AS max_price,
+            argMax(price, timestamp)            AS latest_price,
+            argMax(url, timestamp)              AS latest_url,
+            max(timestamp)                      AS latest_timestamp,
+            count()                             AS observations
+        FROM pricepilot.flight_events
+        WHERE {where}
+        GROUP BY source
+        ORDER BY latest_price
+    """
+    result = client.query(query, parameters=params)
+    columns = result.column_names
+    return [dict(zip(columns, row)) for row in result.result_rows]
+
+
+def poll_tracked_flights() -> list[dict[str, Any]]:
+    """
+    Return all active flight watches whose departure hasn't passed. Intended
+    for the scheduler: iterate the result, call find_cheapest_flight for
+    each, alert on threshold breach. Demo-safe: returns [] when ClickHouse
+    credentials are unavailable.
+    """
+    if not os.environ.get("CLICKHOUSE_HOST"):
+        return []
+
+    try:
+        import clickhouse_connect
+    except ModuleNotFoundError:
+        return []
+
+    client = clickhouse_connect.get_client(
+        host=os.environ["CLICKHOUSE_HOST"],
+        port=int(os.environ.get("CLICKHOUSE_PORT", "8443")),
+        username=os.environ.get("CLICKHOUSE_USER", "nimble_loader"),
+        password=os.environ["CLICKHOUSE_PASSWORD"],
+        database="pricepilot",
+        secure=True,
+    )
+    result = client.query(
+        """
+        SELECT
+            user_id,
+            flight_id,
+            origin,
+            destination,
+            depart_date,
+            cabin,
+            passengers,
+            threshold,
+            expires_at
+        FROM pricepilot.tracked_flights FINAL
+        WHERE active = 1
+          AND expires_at > now()
+        ORDER BY expires_at
+        """
+    )
+    columns = result.column_names
+    return [dict(zip(columns, row)) for row in result.result_rows]
