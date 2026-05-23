@@ -203,6 +203,37 @@
       max-width: 540px;
     }
 
+    .plugin-manifest {
+      border: 1.5px solid var(--ink);
+      background: var(--paper-deep);
+      margin-top: 1rem;
+      padding: 0.875rem;
+    }
+    .plugin-row {
+      display: grid;
+      grid-template-columns: 7.5rem 1fr;
+      gap: 0.75rem;
+      padding: 0.45rem 0;
+      border-bottom: 1px dashed var(--line-soft);
+      align-items: start;
+    }
+    .plugin-row:last-child { border-bottom: none; }
+    .plugin-key {
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--stamp);
+    }
+    .plugin-val {
+      color: var(--ink);
+      font-size: 0.8125rem;
+      line-height: 1.5;
+    }
+    .plugin-val span {
+      color: var(--ink-soft);
+    }
+
     .ask-list {
       list-style: none;
       padding: 0;
@@ -360,6 +391,85 @@
       line-height: 1.55;
     }
     .checklist .what strong { color: var(--ink); }
+
+    .flow-diagram {
+      border-top: 1px dashed var(--line-soft);
+      border-bottom: 1px dashed var(--line-soft);
+      padding: 0.5rem 0;
+      margin-top: 0.75rem;
+    }
+    .flow-step {
+      display: grid;
+      grid-template-columns: 2rem 1fr;
+      gap: 0.75rem;
+      padding: 0.625rem 0;
+      border-bottom: 1px dashed var(--line-soft);
+    }
+    .flow-step:last-child { border-bottom: none; }
+    .flow-step .mark {
+      color: var(--stamp);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      font-size: 0.6875rem;
+      padding-top: 0.125rem;
+    }
+    .flow-step .title {
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 0.8125rem;
+      margin-bottom: 0.125rem;
+    }
+    .flow-step .desc {
+      color: var(--ink-soft);
+      font-size: 0.75rem;
+      line-height: 1.55;
+    }
+
+    .arch-diagram {
+      margin-top: 0.875rem;
+      border: 1.5px solid var(--ink);
+      padding: 0.875rem;
+      background: var(--paper);
+    }
+    .arch-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .arch-row:last-child { margin-bottom: 0; }
+    .arch-node {
+      border: 1px solid var(--line-soft);
+      background: var(--paper-deep);
+      padding: 0.55rem 0.625rem;
+      min-height: 3.25rem;
+    }
+    .arch-node.dark {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+    .arch-node .node-h {
+      display: block;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 0.2rem;
+    }
+    .arch-node .node-p {
+      display: block;
+      font-size: 0.6875rem;
+      line-height: 1.45;
+      color: var(--ink-soft);
+    }
+    .arch-node.dark .node-p { color: var(--paper-deep); }
+    .arch-arrow {
+      color: var(--stamp);
+      font-weight: 700;
+      font-size: 0.875rem;
+    }
 
     pre {
       background: var(--ink);
@@ -526,7 +636,10 @@
       .receipt { padding: 1.5rem 1rem 3rem; }
       .masthead .brand { font-size: 2rem; }
       .lede { font-size: 1.25rem; }
+      .plugin-row { grid-template-columns: 1fr; gap: 0.15rem; }
       .ticket-tab { font-size: 0.625rem; padding: 0.55rem 0.375rem; letter-spacing: 0.04em; }
+      .arch-row { grid-template-columns: 1fr; }
+      .arch-arrow { text-align: center; transform: rotate(90deg); }
     }
   </style>
 </head>
@@ -552,8 +665,31 @@
       </header>
 
       <section class="sec">
-        <p class="lede">Name a product. Get a <em>printed receipt</em> back with the cheapest <span class="underline">verified</span> buy link.</p>
-        <p class="body-copy">Today PricePilot resolves the exact variant on Amazon and Walmart — SERP, parent PDP, child PDP — and returns the cheapest verified buyable offer with real price, real stock, real seller. Target's next on the line.</p>
+        <p class="sec-h">Hermes agent plugin <span class="num">[overview]</span></p>
+        <p class="lede">PricePilot is the shopping plugin Hermes calls when it needs a <em>real cheapest offer</em>, not a search-result guess.</p>
+        <p class="body-copy">Hermes stays in charge of reasoning, user context, and the final answer. PricePilot is the paid execution layer underneath: one tool call resolves the market, verifies the buyable offer, records the observation, and returns the receipt.</p>
+        <div class="plugin-manifest">
+          <div class="plugin-row">
+            <div class="plugin-key">Tool</div>
+            <div class="plugin-val"><code class="inline">find_cheapest_product</code> <span>&mdash; one Hermes-callable shopping action.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Input</div>
+            <div class="plugin-val">brand + model <span>with category, color, condition, and optional shoe size when relevant.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Work</div>
+            <div class="plugin-val">resolve Amazon + Walmart live <span>then reject stale SERP prices, wrong variants, and bad conditions.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Output</div>
+            <div class="plugin-val">best offer + all offers + missing sources <span>ready for Hermes to answer the user.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Powered by</div>
+            <div class="plugin-val">Nimble, ClickHouse, Senso <span>and a $0.05 x402 / MPP payment gate.</span></div>
+          </div>
+        </div>
         <div style="margin-top: 1rem; padding: 0.75rem; background: var(--paper-deep); border: 1px dashed var(--line-soft); border-radius: 4px; font-size: 0.8125rem; color: var(--ink-soft); font-style: italic;">
           <span style="font-style: normal; font-weight: 700; color: var(--stamp); margin-right: 0.375rem;">psst—</span>Every price you get was checked <em>just for you</em>. No stale SERP guesses. Just the real buyable price, fresh off the shelf.
         </div>
@@ -577,7 +713,7 @@
       <section class="sec">
         <p class="sec-h">Things your agent can ask <span class="num">[4]</span></p>
         <div style="margin-bottom: 0.75rem; font-size: 0.6875rem; color: var(--muted); font-style: italic;">
-          Try these — each one returns the actual cheapest offer, not a guess.
+          Hermes turns each ask into a structured call. Shoes can include size; generic products do not need one.
         </div>
         <ul class="ask-list">
           <li>
@@ -604,7 +740,82 @@
       </section>
 
       <section class="sec">
-        <p class="sec-h">The endpoint <span class="num">[1 of 1]</span></p>
+        <p class="sec-h">How Hermes uses it <span class="num">[agent flow]</span></p>
+        <p class="body-copy">The demo story is not an endpoint in isolation. Hermes is the user-facing agent; PricePilot is the paid tool Hermes calls when it needs grounded shopping data.</p>
+        <div class="flow-diagram">
+          <div class="flow-step">
+            <span class="mark">01</span>
+            <div>
+              <div class="title">User asks Hermes</div>
+              <div class="desc">"Find the cheapest Sony WH-1000XM5 in black" or "Nike Killshot 2 men's size 11.5."</div>
+            </div>
+          </div>
+          <div class="flow-step">
+            <span class="mark">02</span>
+            <div>
+              <div class="title">Hermes structures the request</div>
+              <div class="desc">Brand, model, category, color, optional size, condition, and source scope become one tool call.</div>
+            </div>
+          </div>
+          <div class="flow-step">
+            <span class="mark">03</span>
+            <div>
+              <div class="title">PricePilot verifies the market</div>
+              <div class="desc">Amazon and Walmart are resolved live, exact variants are checked when needed, and stale SERP prices are rejected.</div>
+            </div>
+          </div>
+          <div class="flow-step">
+            <span class="mark">04</span>
+            <div>
+              <div class="title">Hermes completes the job</div>
+              <div class="desc">The cheapest verified offer comes back with seller, stock, URL, observation IDs, and missing-source reasons.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">Architecture <span class="num">[live path]</span></p>
+        <p class="body-copy">The complete vision is an agent commerce loop: Hermes handles reasoning and user interaction, PricePilot handles paid market data, and ClickHouse keeps the price memory for history, alerts, and reports.</p>
+        <div class="arch-diagram" aria-label="PricePilot architecture diagram">
+          <div class="arch-row">
+            <div class="arch-node dark">
+              <span class="node-h">Hermes Agent</span>
+              <span class="node-p">Reasoning, user context, follow-up questions, final answer.</span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="arch-node">
+              <span class="node-h">find_cheapest_product</span>
+              <span class="node-p">One paid tool call with brand, model, category, color, optional size.</span>
+            </div>
+          </div>
+          <div class="arch-row">
+            <div class="arch-node">
+              <span class="node-h">Retail Fan-Out</span>
+              <span class="node-p">Nimble resolves Amazon and Walmart PDPs, variants, stock, seller, price.</span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="arch-node">
+              <span class="node-h">Verify + Rank</span>
+              <span class="node-p">Reject near misses, renewed/open-box when new is requested, then rank by total price.</span>
+            </div>
+          </div>
+          <div class="arch-row">
+            <div class="arch-node">
+              <span class="node-h">ClickHouse Memory</span>
+              <span class="node-p">Store price_events for repeat checks, history, tracking, and Senso reports.</span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="arch-node dark">
+              <span class="node-h">Receipt Response</span>
+              <span class="node-p">Best offer, all offers, missing sources, and observation IDs back to Hermes.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">Paid service endpoint <span class="num">[powered by x402 / MPP]</span></p>
         <div style="margin-bottom: 0.875rem; font-size: 0.6875rem; color: var(--ink-soft); display: flex; align-items: center; gap: 0.5rem;">
           <span style="display: inline-block; width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: blink 1.6s infinite;"></span>
           Live now — checking Amazon &amp; Walmart every request
