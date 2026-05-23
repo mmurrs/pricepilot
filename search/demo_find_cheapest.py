@@ -26,8 +26,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--brand", required=True)
     parser.add_argument("--model", required=True)
+    parser.add_argument("--category", choices=["shoes", "electronics", "toys", "generic"])
     parser.add_argument("--color")
-    parser.add_argument("--size", type=float, required=True)
+    parser.add_argument("--size", type=float)
     parser.add_argument("--gender", choices=["men", "women", "kids", "unisex"], default="men")
     parser.add_argument("--postal-code", default="10001")
     parser.add_argument("--source-scope", choices=["amazon", "retail", "all"], default="amazon")
@@ -40,11 +41,25 @@ async def main() -> int:
     result = await find_cheapest_product(
         brand=args.brand,
         model=args.model,
+        category=args.category,
         color=args.color,
-        size={"system": "US", "gender": args.gender, "value": args.size},
+        size=(
+            {"system": "US", "gender": args.gender, "value": args.size}
+            if args.size is not None
+            else None
+        ),
         postal_code=args.postal_code,
         source_scope=args.source_scope,
-        query=" ".join(part for part in [args.brand, args.model, args.color, str(args.size)] if part),
+        query=" ".join(
+            part
+            for part in [
+                args.brand,
+                args.model,
+                args.color,
+                f"size {args.size:g}" if args.size is not None else None,
+            ]
+            if part
+        ),
         user_id=args.user_id,
     )
     print(json.dumps(asdict(result), indent=2))

@@ -56,12 +56,11 @@ npm install @nimbleway/sdk
 | `amazon_pdp` | `asin`, `zip_code`(opt) | `web_price`, `list_price`, `product_title`, `brand`, `average_of_reviews`, `availability`, `image_url` |
 | `amazon_serp` | search query | paginated results w/ ASINs |
 | `amazon_category` | category | paginated |
-| `walmart_pdp` | URL | localized price |
-| `walmart_search` | query | paginated |
+| `walmart_pdp` | `product_id`, `zipcode`(opt) | localized price, availability, variants |
+| `google_search` | query | SERP; use `site:walmart.com` to resolve Walmart product IDs |
 | `target_pdp` | URL | localized |
 | `best_buy_pdp` | URL | localized |
 | `home_depot_pdp` | URL | localized |
-| `google_search` | query | SERP |
 | `google_search_aio` | query | AI Overview |
 | `google_maps_search` | query | maps results |
 

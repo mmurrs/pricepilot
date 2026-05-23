@@ -184,16 +184,16 @@ import asyncio, os
 client = AsyncNimble(api_key=os.environ["NIMBLE_API_KEY"])
 
 async def find_cheapest_product(spec: dict) -> dict:
-    # Current PR: Amazon exact-variant path.
-    # Build query from brand/model/color plus shoe gender and size.
-    query = " ".join([
+    # Amazon exact-variant path when size is present; generic product search otherwise.
+    # Build query from brand/model/color plus shoe gender and size when provided.
+    parts = [
         spec["brand"],
         spec["model"],
         spec.get("color", ""),
-        spec["size"]["gender"] + "s",
-        "size",
-        str(spec["size"]["value"]),
-    ]).strip()
+    ]
+    if spec.get("size"):
+        parts.extend([spec["size"].get("gender", "men") + "s", "size", str(spec["size"]["value"])])
+    query = " ".join(parts).strip()
 
     amazon_search = await client.agent.run(
         agent="amazon_serp",
@@ -203,7 +203,7 @@ async def find_cheapest_product(spec: dict) -> dict:
     # Then parse ranked ASIN candidates, pull parent amazon_pdp HTML,
     # resolve dimensionValuesDisplayData to child ASIN, and fetch child PDP.
 
-    # Future Walmart path:
+    # Walmart retail path:
     # walmart_google = await client.agent.run(
     #     agent="google_search",
     #     params={"query": f"{query} site:walmart.com", "country": "US"},
@@ -277,10 +277,10 @@ Note: per-retailer URLs live on `tracked_products` (`amazon_url` / `walmart_url`
 
 ```python
 tools = [
-  find_cheapest_product(                                      # PRIMARY — explicit shoe spec for demo
+  find_cheapest_product(                                      # PRIMARY — product search tool
     brand: str,
     model: str,
-    size: {"system": "US", "gender": "men", "value": float},
+    size: {"system": "US", "gender": "men", "value": float} | None = None,
     color: str | None = None,
     condition: "new" | "used" | "ds" | "any" = "new",
     postal_code: str = "10001",
