@@ -1,196 +1,131 @@
-# PricePilot — MVP Architecture
+# PricePilot — Architecture
 
-> Autonomous price monitoring agent: tracks Amazon/Walmart prices, stores history in ClickHouse, alerts via Telegram, publishes grounded reports via Senso.ai.
+## System Overview
 
----
-
-## Architecture Diagram
+PricePilot is an autonomous price-monitoring agent delivered as a Telegram bot. Users send natural-language messages; the Hermes agent framework interprets intent, calls tool scripts, and replies with real price data.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                     USER INTERFACE                       │
-│              Telegram Bot  (@PricePilotBot)               │
-│   "Track amazon.com/dp/X  alert me when under $89"      │
-└─────────────────────────┬────────────────────────────────┘
-                          │ inbound message (webhook)
-                          ▼
-┌──────────────────────────────────────────────────────────┐
-│              HERMES AGENT  (Daytona Sandbox)              │
-│                                                          │
-│  ┌─────────────┐   ┌──────────────┐   ┌──────────────┐  │
-│  │Intent Parser│──▶│  Tool Router │──▶│Resp Composer │  │
-│  └─────────────┘   └──────┬───────┘   └──────────────┘  │
-│                           │                              │
-│         ┌─────────────────┼──────────────────┐          │
-│         │                 │                  │          │
-│   track_product    check_price(s)     get_history       │
-│   (url, target)    [polling loop]    (product_id)        │
-└─────────┼─────────────────┼──────────────────┼──────────┘
-          │                 │                  │
-          ▼                 ▼                  ▼
-┌──────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│    NIMBLE    │  │   CLICKHOUSE    │  │    SENSO.AI      │
-│              │  │                 │  │                  │
-│ Pre-built    │  │ price_events    │  │ generate_report( │
-│ Amazon +     │─▶│ ┌─────────────┐ │  │   product_name,  │
-│ Walmart      │  │ │product_id   │ │─▶│   price_history, │
-│ scrapers     │  │ │price        │ │  │   sources=[...]  │
-│              │  │ │source       │ │  │ )                │
-│ → price,     │  │ │timestamp    │ │  │ → published_url  │
-│   title,     │  │ └─────────────┘ │  │   on cited.md    │
-│   currency   │  │                 │  │                  │
-└──────────────┘  └─────────────────┘  └────────┬────────┘
-                                                 │
-                           ┌─────────────────────┘
-                           ▼
-              Hermes → Telegram alert:
-              "Price dropped to $79! Analysis: [url]"
+User (Telegram)
+      │
+      ▼
+Hermes Gateway v0.14       ← runs in Daytona sandbox (ubuntu 22.04)
+  LLM: qwen35-35b          ← via LiteLLM proxy (OpenAI-compatible API)
+  Platform: Telegram polling
+      │
+      ├── find-best-price skill ──▶ tools/find_best_price.py
+      │                                 └──▶ Nimble API (keyword search + scrape)
+      │                                         returns: ranked PriceResult list
+      │
+      ├── check-price skill ──────▶ tools/check_price.py
+      │                                 └──▶ Nimble API (single URL scrape)
+      │
+      ├── track-product skill ────▶ tools/check_price.py  → Nimble
+      │                             tools/store_price.py  → ClickHouse Cloud
+      │                             tools/add_tracked.py  → ClickHouse Cloud
+      │
+      ├── price-history skill ────▶ tools/get_tracked.py  → ClickHouse Cloud
+      │                             tools/get_history.py  → ClickHouse Cloud
+      │
+      └── price-alert skill ──────▶ tools/poll.py              → Nimble + ClickHouse
+           (cron every 10 min)      tools/generate_report.py   → Senso.ai
+                                    → sends TG alert on drop
 ```
 
 ---
 
-## User Intent → Agent Flows
+## Component Map
 
-### Flow 1: Register a product to track
+| Component | File(s) | Owner | Status |
+|---|---|---|---|
+| Hermes skills | `skills/*/SKILL.md` | Kishore | ✅ 5 skills deployed |
+| Tool scripts | `tools/*.py` | Kishore | ✅ All working |
+| Nimble client | `integrations/nimble_client.py` | Nimble teammate | ✅ Real (Bearer auth) |
+| ClickHouse client | `integrations/clickhouse_client.py` | ClickHouse teammate | ✅ Real (clickhouse_connect) |
+| Senso client | `integrations/senso_client.py` | Senso teammate | ⚠️ Stub |
+| Hermes setup | `hermes/setup.sh`, `hermes/start.sh` | Kishore | ✅ Working |
+| Daytona config | `.daytona.yaml` | Kishore | ✅ ubuntu 22.04 |
+| DB schema | `schema/init_db.sql` | Kishore | ✅ Deployed to ClickHouse Cloud |
 
-```
-User:  "Track amazon.com/dp/B0XYZ alert me when under $89"
+---
 
-Hermes: parse_intent()
-  → { action: "track", url: "...", threshold: 89.00 }
-  → Nimble: scrape_price(url)
-      ← { price: 109.99, title: "Sony WH-1000XM5", source: "amazon" }
-  → ClickHouse: INSERT INTO price_events + tracked_products
-  → Telegram: "Tracking Sony WH-1000XM5 @ $109.99.
-               I'll alert you when it drops below $89."
-```
-
-### Flow 2: Polling loop (every 10 min, Daytona scheduler)
-
-```
-Scheduler triggers: check_all_tracked()
-
-  → ClickHouse: SELECT * FROM tracked_products
-  → for each product:
-      → Nimble: scrape_price(url)         ← cross-check Amazon + Walmart
-      → ClickHouse: INSERT price_event
-      → if price < threshold:
-          → Senso.ai: generate_report(
-                product_name, price_history[last 24h],
-                sources=[amazon_url, walmart_url]
-              )
-              ← { report_url: "cited.md/report/abc123" }
-          → Telegram: "🚨 Drop! Sony XM5 is $79.99 (was $109.99).
-                       Full price analysis: {report_url}"
-```
-
-### Flow 3: On-demand history query
+## Data Flow — Price Discovery
 
 ```
-User: "What's the price history for my items?"
-
-  → ClickHouse: SELECT product_id, MIN(price), MAX(price),
-                        price, timestamp
-                FROM price_events
-                WHERE user_id = ?
-                ORDER BY timestamp DESC
-  → Hermes: format summary
-  → Telegram: table of current vs. lowest recorded price per product
+User: "find the best price for Crocs size 10 white"
+  │
+  ▼ Hermes selects find-best-price skill
+  ▼ python tools/find_best_price.py "crocs size 10 white"
+  ▼ nimble_client.search_and_price("crocs size 10 white")
+      ├── GET https://www.amazon.com/s?k=crocs+size+10+white  (via Nimble)
+      │     parse /dp/ ASINs → scrape product pages → PriceResult[]
+      └── GET https://www.walmart.com/search?q=...  (via Nimble)
+            parse JSON-LD → PriceResult[]
+  ▼ sort by price asc
+  ▼ return JSON to Hermes
+  ▼ Hermes formats table → sends to Telegram
 ```
 
 ---
 
-## Sponsor Tool Roles
+## Data Flow — Price Alert
 
-| Tool | Role | Why it's compelling to judges |
-|------|------|-------------------------------|
-| **Nimble** | Real-time price scraping from Amazon + Walmart | Cross-platform comparison = autonomous data gathering; uses pre-built retailer scrapers |
-| **ClickHouse** | Time-series store for `price_events`; historical trend queries | Analytical queries over agent-generated data — the ClickHouse sweet spot |
-| **Senso.ai** | Generates a grounded, cited price-drop report and publishes it | Closes the loop: "ingestion alone won't qualify" — publishes to cited.md, making content agent-discoverable |
-
----
-
-## ClickHouse Schema
-
-```sql
-CREATE TABLE price_events (
-  user_id      String,
-  product_id   String,
-  product_name String,
-  url          String,
-  source       Enum('amazon', 'walmart'),
-  price        Float64,
-  currency     String DEFAULT 'USD',
-  timestamp    DateTime DEFAULT now()
-) ENGINE = MergeTree()
-ORDER BY (product_id, timestamp);
-
-CREATE TABLE tracked_products (
-  user_id      String,
-  product_id   String,
-  product_name String,
-  amazon_url   String,
-  walmart_url  String,
-  threshold    Float64,
-  active       UInt8 DEFAULT 1
-) ENGINE = MergeTree()
-ORDER BY (user_id, product_id);
+```
+Cron every 10 min → price-alert skill
+  ▼ python tools/poll.py
+      ▼ clickhouse_client.get_tracked_products()
+      ▼ for each product:
+          nimble_client.check_price(url) → current price
+          clickhouse_client.store_price_event(...)
+          if current_price < threshold:
+              python tools/generate_report.py  →  senso_client.generate_report()
+              Hermes sends TG alert with Senso report URL
 ```
 
 ---
 
-## Hermes Tool Definitions
+## External Services
 
-```python
-tools = [
-  track_product(url: str, threshold: float, user_id: str),
-  check_price(product_id: str) -> PriceResult,        # calls Nimble
-  get_price_history(product_id: str) -> List[Price],  # queries ClickHouse
-  generate_report(product_id: str) -> str,            # calls Senso → URL
-  send_alert(user_id: str, message: str, url: str),   # Telegram
-]
+| Service | Endpoint | Auth | Used for |
+|---|---|---|---|
+| LiteLLM proxy | `https://spark-2bc4.tail3a01e2.ts.net/v1` | Bearer `OPENAI_API_KEY` | LLM inference (qwen35-35b) |
+| Nimble Web API | `https://api.webit.live/api/v1/realtime/web` | Bearer `NIMBLE_API_KEY` | Amazon + Walmart scraping |
+| ClickHouse Cloud | `<host>:8443` (TLS) | user/pass | Price event storage + queries |
+| Senso.ai | `SENSO_BASE_URL` | Bearer `SENSO_API_KEY` | Grounded report generation |
+| Telegram Bot API | `https://api.telegram.org` | `TELEGRAM_BOT_TOKEN` | User messaging |
+| Daytona | `https://app.daytona.io` | `DAYTONA_KEY` | Sandbox provisioning |
+
+---
+
+## Hermes Configuration
+
+`~/.hermes/config.yaml` (written by `setup.sh`):
+
+```yaml
+model:
+  provider: custom       # OpenAI-compatible custom endpoint
+  model: qwen35-35b
+  base_url: https://spark-2bc4.tail3a01e2.ts.net/v1
+
+skills:
+  external_dirs:
+    - ~/.hermes/skills/pricepilot
+
+terminal:
+  env: local
+
+agent:
+  max_iterations: 30
 ```
 
 ---
 
-## Team Division of Work
+## Judging Alignment
 
-| Person | Focus | Deliverable |
-|--------|-------|-------------|
-| **Kishore** | Hermes agent in Daytona: intent parser, tool routing, polling loop, Telegram webhook | Working agent that calls the other 3 functions |
-| **Nimble** | Pre-built Amazon/Walmart scrapers | `check_price(url) → {price, title, source}` |
-| **ClickHouse** | Schema creation, INSERT/SELECT helpers | `store_price(event)`, `get_history(product_id)`, `get_tracked()` |
-| **Senso** | Report generation + publish | `generate_report(product, price_history) → published_url` |
-
-> Integration contract: each person exposes **one Python function**. Hermes imports them all.
-
----
-
-## Judging Criteria Alignment
-
-| Criterion (20% each) | How we hit it |
-|----------------------|---------------|
-| **Autonomy** | Polling loop runs without user intervention; alerts fire on its own |
-| **Idea** | Real consumer value — saves money on purchases over $100 |
-| **Technical implementation** | Hermes orchestration + 3 integrated sponsor APIs |
-| **Tool use** | Nimble + ClickHouse + Senso.ai = 3 sponsor tools |
-| **Presentation** | Demo: user tracks a product → price drop triggers → Senso report published → Telegram alert fires |
-
----
-
-## MVP Scope (ship by 4:30 PM)
-
-- [x] Telegram bot receives and parses user intent
-- [ ] Nimble scrapes Amazon price for a given URL
-- [ ] ClickHouse stores price events and tracked products
-- [ ] Hermes polling loop checks prices every 10 minutes
-- [ ] Senso.ai generates and publishes a price-drop report
-- [ ] Telegram alert fires with report URL on price drop
-- [ ] On-demand history query returns price table
-
-### Out of scope for MVP
-- Walmart cross-check (add if time permits)
-- Landing page / web UI
-- Voice interface
-- Credit card points optimization
-- Computer vision for in-store prices
+| Criterion | How PricePilot addresses it |
+|---|---|
+| **Nimble** | Real price scraping via web extraction API — both product pages and search results |
+| **ClickHouse** | All price events and tracked products persisted; history queries over time window |
+| **Senso.ai** | Report generation on price drop events (stub → teammate integrates real API) |
+| **Hermes** | Full agent runtime: skills, terminal tool, LiteLLM routing, Telegram gateway |
+| **Daytona** | Sandbox provisioned via SDK/API; all code runs inside sandbox |
+| **Agentic** | Multi-step reasoning: search → scrape → compare → store → alert |

@@ -1,12 +1,21 @@
 # Hermes config for PricePilot
-# Placed at ~/.hermes/config.yaml by setup.sh
+# Installed at ~/.hermes/config.yaml by setup.sh
+#
+# Provider: custom OpenAI-compatible endpoint (LiteLLM proxy)
+# Keys are read from ~/.hermes/.env — do not put real keys here.
+
+model:
+  provider: custom          # custom = use base_url below, not openrouter
+  model: qwen35-35b
+  base_url: https://spark-2bc4.tail3a01e2.ts.net/v1
+  # api_key is read from OPENAI_API_KEY in ~/.hermes/.env
 
 skills:
   external_dirs:
-    - ~/.hermes/skills/pricepilot   # PricePilot skills (installed by setup.sh)
+    - ~/.hermes/skills/pricepilot
 
 terminal:
-  env: local                         # override with TERMINAL_ENV=daytona env var
+  env: local                # override with TERMINAL_ENV=daytona if using remote exec
 
 agent:
-  max_iterations: 30                 # price checks are fast, keep it tight
+  max_iterations: 30

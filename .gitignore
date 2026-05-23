@@ -1,36 +1,52 @@
-# Env
+# ── Secrets / credentials ─────────────────────────────────────────────────────
 .env
 .env.local
 .env.*.local
+*.key
+*.pem
+*.p12
+secrets/
+credentials/
 
-# Node
-node_modules/
-dist/
-build/
-.next/
-.turbo/
+# ── Hermes runtime state (never commit) ───────────────────────────────────────
+.hermes/
+~/.hermes/
 
-# Python
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
+*.egg-info/
+dist/
+build/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.coverage
+htmlcov/
 
-# IDE
+# ── Node ──────────────────────────────────────────────────────────────────────
+node_modules/
+.next/
+.turbo/
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
-.DS_Store
+*.swo
 
-# Logs
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# Misc
+# ── Misc ──────────────────────────────────────────────────────────────────────
 .cache/
 tmp/
+*.tmp

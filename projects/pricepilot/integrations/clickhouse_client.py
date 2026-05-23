@@ -1,32 +1,41 @@
 """
 ClickHouse integration client.
 
-STUB implementation: data is held in module-level lists.
-The `get_client` context manager is exported so that real-integration tests
-(which mock it) continue to work without modification.
-Teammates replace `get_client` and the four public functions with real
-ClickHouse queries while keeping the same signatures.
+Reads connection settings from env vars:
+  CLICKHOUSE_HOST, CLICKHOUSE_PORT, CLICKHOUSE_USER,
+  CLICKHOUSE_PASSWORD, CLICKHOUSE_DATABASE
 """
+import os
 from contextlib import contextmanager
-from unittest.mock import MagicMock
+from datetime import datetime, timezone
 
-# ---------------------------------------------------------------------------
-# get_client — exported so existing tests can mock it.
-# In the stub it returns a no-op mock; real integration will return a live
-# clickhouse_connect client.
-# ---------------------------------------------------------------------------
+import clickhouse_connect
+
+
+def _get_settings() -> dict:
+    return dict(
+        host=os.environ.get("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.environ.get("CLICKHOUSE_PORT", "8443")),
+        username=os.environ.get("CLICKHOUSE_USER", "default"),
+        password=os.environ.get("CLICKHOUSE_PASSWORD", ""),
+        database=os.environ.get("CLICKHOUSE_DATABASE", "pricepilot"),
+        secure=True,
+        verify=False,
+    )
+
+
+def _table() -> str:
+    return os.environ.get("CLICKHOUSE_TABLE", "price_events")
+
 
 @contextmanager
 def get_client():
-    """STUB: yields a no-op MagicMock. Replace with real clickhouse_connect client."""
-    yield MagicMock()
-
-
-# ---------------------------------------------------------------------------
-# In-memory stores (stub only)
-# ---------------------------------------------------------------------------
-_tracked: list[dict] = []
-_events: list[dict] = []
+    """Yield a live clickhouse_connect client, close on exit."""
+    client = clickhouse_connect.get_client(**_get_settings())
+    try:
+        yield client
+    finally:
+        client.close()
 
 
 def store_price_event(
@@ -38,23 +47,29 @@ def store_price_event(
     price: float,
     currency: str = "USD",
 ) -> None:
-    """STUB: Stores in memory. Replace with real ClickHouse insert."""
-    from datetime import datetime
-    _events.append({
-        "user_id": user_id,
-        "product_id": product_id,
-        "product_name": product_name,
-        "url": url,
-        "source": source,
-        "price": price,
-        "currency": currency,
-        "timestamp": datetime.utcnow().isoformat(),
-    })
+    with get_client() as client:
+        client.insert(
+            _table(),
+            [[user_id, product_id, product_name, url, source, price, currency,
+              datetime.now(timezone.utc)]],
+            column_names=["user_id", "product_id", "product_name", "url",
+                          "source", "price", "currency", "timestamp"],
+        )
 
 
 def get_price_history(product_id: str, hours: int = 24) -> list[dict]:
-    """STUB: Returns in-memory events. Replace with real ClickHouse query."""
-    return [e for e in _events if e["product_id"] == product_id]
+    with get_client() as client:
+        rows = client.query(
+            f"""
+            SELECT price, toString(timestamp) AS timestamp, source
+            FROM {_table()}
+            WHERE product_id = {{product_id:String}}
+              AND timestamp >= now() - INTERVAL {{hours:UInt32}} HOUR
+            ORDER BY timestamp DESC
+            """,
+            parameters={"product_id": product_id, "hours": hours},
+        ).named_results()
+    return list(rows)
 
 
 def add_tracked_product(
@@ -65,18 +80,27 @@ def add_tracked_product(
     threshold: float,
     walmart_url: str = "",
 ) -> None:
-    """STUB: Stores in memory. Replace with real ClickHouse insert."""
-    _tracked.append({
-        "user_id": user_id,
-        "product_id": product_id,
-        "product_name": product_name,
-        "amazon_url": amazon_url,
-        "walmart_url": walmart_url,
-        "threshold": threshold,
-        "active": 1,
-    })
+    tracked_table = os.environ.get("CLICKHOUSE_TRACKED_TABLE", "tracked_products")
+    with get_client() as client:
+        client.insert(
+            tracked_table,
+            [[user_id, product_id, product_name, amazon_url, walmart_url,
+              threshold, 1, datetime.now(timezone.utc)]],
+            column_names=["user_id", "product_id", "product_name", "amazon_url",
+                          "walmart_url", "threshold", "active", "created_at"],
+        )
 
 
 def get_tracked_products() -> list[dict]:
-    """STUB: Returns in-memory list. Replace with real ClickHouse query."""
-    return [p for p in _tracked if p["active"] == 1]
+    with get_client() as client:
+        tracked_table = os.environ.get("CLICKHOUSE_TRACKED_TABLE", "tracked_products")
+        rows = client.query(
+            f"""
+            SELECT user_id, product_id, product_name, amazon_url, walmart_url,
+                   threshold, active
+            FROM {tracked_table}
+            WHERE active = 1
+            ORDER BY created_at DESC
+            """,
+        ).named_results()
+    return list(rows)
