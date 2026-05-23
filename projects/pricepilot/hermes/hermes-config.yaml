@@ -1,21 +1,26 @@
 # Hermes config for PricePilot
 # Installed at ~/.hermes/config.yaml by setup.sh
 #
-# Provider: custom OpenAI-compatible endpoint (LiteLLM proxy)
-# Keys are read from ~/.hermes/.env — do not put real keys here.
+# custom_providers + key_env is REQUIRED for non-openai endpoints.
+# bare `provider: custom` ignores OPENAI_API_KEY for non-openai URLs.
+# Keys stay in ~/.hermes/.env — never put real values here.
+
+custom_providers:
+  - name: litellm
+    base_url: OPENAI_BASE_URL_PLACEHOLDER     # replaced by setup.sh/deploy.sh from OPENAI_BASE_URL
+    key_env: OPENAI_API_KEY                   # Hermes reads this env var for the Bearer token
+    model: qwen35-35b
 
 model:
-  provider: custom          # custom = use base_url below, not openrouter
+  provider: litellm
   model: qwen35-35b
-  base_url: OPENAI_BASE_URL_PLACEHOLDER     # replaced by setup.sh from OPENAI_BASE_URL in .env
-  # api_key is read from OPENAI_API_KEY in ~/.hermes/.env
 
 skills:
   external_dirs:
     - ~/.hermes/skills/pricepilot
 
 terminal:
-  env: local                # override with TERMINAL_ENV=daytona if using remote exec
+  env: local
 
 agent:
   max_iterations: 30
