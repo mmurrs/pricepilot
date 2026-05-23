@@ -233,6 +233,45 @@
     .plugin-val span {
       color: var(--ink-soft);
     }
+    .coverage-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.25rem;
+    }
+    .coverage-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      border: 1px solid var(--line);
+      padding: 0.2rem 0.45rem;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .coverage-pill.live {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+    .coverage-pill.live::before {
+      content: "●";
+      color: var(--green);
+      animation: blink 1.6s infinite;
+    }
+    .coverage-pill.next {
+      color: var(--muted);
+      border-style: dashed;
+      background: transparent;
+      opacity: 0.72;
+    }
+    .coverage-pill.next::before {
+      content: "○";
+      color: var(--muted);
+    }
 
     .ask-list {
       list-style: none;
@@ -666,20 +705,40 @@
 
       <section class="sec">
         <p class="sec-h">Hermes agent plugin <span class="num">[overview]</span></p>
-        <p class="lede">PricePilot is the shopping plugin Hermes calls when it needs a <em>real cheapest offer</em>, not a search-result guess.</p>
-        <p class="body-copy">Hermes stays in charge of reasoning, user context, and the final answer. PricePilot is the paid execution layer underneath: one tool call resolves the market, verifies the buyable offer, records the observation, and returns the receipt.</p>
+        <p class="lede">PricePilot is the shopping plugin behind the <em>Hermes Telegram agent</em>.</p>
+        <p class="body-copy">A shopper texts Hermes in Telegram. Hermes reasons over the request, structures a product spec, calls PricePilot, then answers with the cheapest verified buy link. PricePilot is the paid execution layer underneath: one tool call resolves the market, verifies the offer, records the observation, and returns the receipt.</p>
         <div class="plugin-manifest">
           <div class="plugin-row">
-            <div class="plugin-key">Tool</div>
-            <div class="plugin-val"><code class="inline">find_cheapest_product</code> <span>&mdash; one Hermes-callable shopping action.</span></div>
+            <div class="plugin-key">Agent</div>
+            <div class="plugin-val">Hermes <span>&mdash; user-facing reasoning, follow-ups, and final answer.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Channel</div>
+            <div class="plugin-val">Telegram <span>&mdash; shoppers ask in chat; Hermes returns a receipt-style answer.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Plugin</div>
+            <div class="plugin-val"><code class="inline">find_cheapest_product</code> <span>&mdash; the paid Hermes action for live shopping data.</span></div>
           </div>
           <div class="plugin-row">
             <div class="plugin-key">Input</div>
             <div class="plugin-val">brand + model <span>with category, color, condition, and optional shoe size when relevant.</span></div>
           </div>
           <div class="plugin-row">
+            <div class="plugin-key">Coverage</div>
+            <div class="plugin-val">
+              <div class="coverage-strip" aria-label="Retailer coverage">
+                <span class="coverage-pill live">Amazon</span>
+                <span class="coverage-pill live">Walmart</span>
+                <span class="coverage-pill next">Target</span>
+                <span class="coverage-pill next">eBay</span>
+                <span class="coverage-pill next">Facebook</span>
+              </div>
+            </div>
+          </div>
+          <div class="plugin-row">
             <div class="plugin-key">Work</div>
-            <div class="plugin-val">resolve Amazon + Walmart live <span>then reject stale SERP prices, wrong variants, and bad conditions.</span></div>
+            <div class="plugin-val">find cheapest across live retailers <span>then reject stale SERP prices, wrong variants, and bad conditions.</span></div>
           </div>
           <div class="plugin-row">
             <div class="plugin-key">Output</div>
@@ -741,12 +800,12 @@
 
       <section class="sec">
         <p class="sec-h">How Hermes uses it <span class="num">[agent flow]</span></p>
-        <p class="body-copy">The demo story is not an endpoint in isolation. Hermes is the user-facing agent; PricePilot is the paid tool Hermes calls when it needs grounded shopping data.</p>
+        <p class="body-copy">The demo story is not an endpoint in isolation. Hermes is the Telegram shopping agent; PricePilot is the paid plugin Hermes calls when it needs grounded market data.</p>
         <div class="flow-diagram">
           <div class="flow-step">
             <span class="mark">01</span>
             <div>
-              <div class="title">User asks Hermes</div>
+              <div class="title">User texts Hermes in Telegram</div>
               <div class="desc">"Find the cheapest Sony WH-1000XM5 in black" or "Nike Killshot 2 men's size 11.5."</div>
             </div>
           </div>
@@ -761,7 +820,7 @@
             <span class="mark">03</span>
             <div>
               <div class="title">PricePilot verifies the market</div>
-              <div class="desc">Amazon and Walmart are resolved live, exact variants are checked when needed, and stale SERP prices are rejected.</div>
+              <div class="desc">Amazon and Walmart are resolved live today. Target, eBay, and Facebook Marketplace are queued as the next retailer connectors.</div>
             </div>
           </div>
           <div class="flow-step">
@@ -780,8 +839,8 @@
         <div class="arch-diagram" aria-label="PricePilot architecture diagram">
           <div class="arch-row">
             <div class="arch-node dark">
-              <span class="node-h">Hermes Agent</span>
-              <span class="node-p">Reasoning, user context, follow-up questions, final answer.</span>
+              <span class="node-h">Hermes + Telegram</span>
+              <span class="node-p">Chat UX, reasoning, user context, follow-up questions, final answer.</span>
             </div>
             <span class="arch-arrow">&rarr;</span>
             <div class="arch-node">
@@ -792,7 +851,7 @@
           <div class="arch-row">
             <div class="arch-node">
               <span class="node-h">Retail Fan-Out</span>
-              <span class="node-p">Nimble resolves Amazon and Walmart PDPs, variants, stock, seller, price.</span>
+              <span class="node-p">Nimble resolves Amazon and Walmart today; Target, eBay, Facebook next.</span>
             </div>
             <span class="arch-arrow">&rarr;</span>
             <div class="arch-node">
@@ -835,6 +894,8 @@
             <span class="retail-badge live">Amazon &mdash; live</span>
             <span class="retail-badge live">Walmart &mdash; live</span>
             <span class="retail-badge queue">Target &mdash; next</span>
+            <span class="retail-badge queue">eBay &mdash; next</span>
+            <span class="retail-badge queue">Facebook &mdash; next</span>
           </div>
         </div>
       </section>
