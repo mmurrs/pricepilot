@@ -1,0 +1,12 @@
+# Hermes config for PricePilot
+# Placed at ~/.hermes/config.yaml by setup.sh
+
+skills:
+  external_dirs:
+    - ~/.hermes/skills/pricepilot   # PricePilot skills (installed by setup.sh)
+
+terminal:
+  env: local                         # override with TERMINAL_ENV=daytona env var
+
+agent:
+  max_iterations: 30                 # price checks are fast, keep it tight
