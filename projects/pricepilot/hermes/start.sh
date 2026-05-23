@@ -31,6 +31,9 @@ cp -r "$PRICEPILOT_DIR/skills/"* "$HERMES_HOME/skills/pricepilot/"
 echo "==> Installing PricePilot SOUL.md..."
 cp "$PRICEPILOT_DIR/hermes/SOUL.md" "$HERMES_HOME/SOUL.md"
 
+echo "==> Locking skill directories read-only (prevent model self-modification)..."
+chmod -R a-w "$HERMES_HOME/skills/pricepilot/"
+
 echo "==> Setting up Hermes cron for price polling (every 10 minutes)..."
 # Write a Hermes cron config entry using the built-in scheduler
 # This tells Hermes to invoke the price-alert skill on a schedule
