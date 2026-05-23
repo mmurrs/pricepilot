@@ -14,6 +14,8 @@ triggers:
 
 # find-best-price
 
+> **MANDATORY**: Do NOT write custom Python scripts. Do NOT use web search. Run ONLY the `find_cheapest.py` command in Step 2 — nothing else.
+
 Search Amazon for the cheapest offer for any product (shoes, electronics, clothing, accessories, etc.) using Nimble's agent-based search.
 
 ## When to use
