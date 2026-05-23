@@ -8,6 +8,43 @@ From the 2026-05-23 Killshot 2 size-11.5 dry run plus prior Surf/Nimble experime
 - **The conceptual flow (SERP → variant map → child SKU → price) is correct.** When child ASINs were live, prices came back accurately.
 - **Nimble's `amazon_pdp` returns structured fields** (`web_price`, `list_price`, `availability`, `product_title`). Use this, not HTML.
 
+## Path validation (2026-05-23, `nike killshot 2 white`)
+
+Ran [`test_all_paths.py`](./test_all_paths.py) across 13 candidate paths to find which actually return real Amazon SERP data. Summary table:
+
+| Path | OK | Time | Bytes | ASINs | Cost |
+|---|---|---|---|---|---|
+| Nimble `amazon_serp` baseline (formats=md+html) | ✓ | 12.2s | 2.0MB | 136 | tbd |
+| Nimble `amazon_serp` localization=True | ✓ | 9.6s | 2.3MB | 139 | tbd |
+| Nimble `amazon_serp` driver=wsa-vx10 | ✓ | 9.9s | 2.0MB | 127 | tbd |
+| Nimble `amazon_serp` driver=wsa-vx6 | ✗ | 3.0s | 2.3KB | 0 | (Akamai stub) |
+| Nimble `amazon_serp` driver=wsa-12m | ✓ | 16.1s | 2.2MB | 134 | tbd |
+| Nimble `amazon_serp` unblocker=True | ✓ | 8.4s | 1.9MB | 137 | tbd |
+| Nimble `amazon_serp` proxy=residential | ✓ | 10.7s | 2.3MB | 133 | tbd |
+| Nimble `amazon_serp` country=US | ✓ | 7.1s | 2.1MB | 138 | tbd |
+| Nimble `google_search → amazon.com` | ✓ | 5.7s | 0.7MB | 16 | tbd |
+| **Firecrawl via AgentCash** | ✓ | <2s | 326KB | 141 | $0.0126 |
+
+### Calibration of the "bot wall" claim
+
+My earlier read — "Nimble is bot-walled by Akamai" — was **wrong**. The 2.3KB `bm-verify` stub only appeared when:
+
+- `formats=["markdown"]` (without `html`)
+- driver was `wsa-vx6` (the cheap tier)
+
+When `formats=["markdown","html"]` is set on the same agent, Nimble returns the full ~2MB Amazon SERP with 130+ ASINs. The empty `data.parsing` list (48 success-shells with `entities=None`) is a *different* issue — Nimble's structured parser couldn't fill its schema, but the underlying HTML/markdown fetch is good.
+
+### Implications for tool design
+
+- **Don't trust the structured `parsing` field on `amazon_serp`** — it returns 48 empty shells. Use the markdown/html and parse client-side.
+- **Always request `formats=["markdown","html"]`** — the SDK defaults can be misleading.
+- **Firecrawl is faster (<2s vs 7-16s) and cheaper to reason about** ($0.0126 known cost vs Nimble's per-page billing). Tradeoff: smaller payload means fewer products surfaced (141 vs 130-140 — basically a wash).
+- **`wsa-vx6` is genuinely bot-walled.** Don't fall back to it even for cost reasons.
+
+### What changed in the test rig
+
+The first version of the test broke because I called `.keys()` on `parsing`, which is a list, not a dict. After fixing, every Nimble config except `wsa-vx6` returned real data. The 2.3KB Akamai stub is real but rare.
+
 ## Watchouts
 
 1. **Don't scrape Amazon HTML for prices — use the product API.**
