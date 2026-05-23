@@ -1181,6 +1181,32 @@
       letter-spacing: 0.1em;
     }
 
+    .resources-nav {
+      position: fixed;
+      top: 1rem;
+      right: 1.5rem;
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      z-index: 100;
+    }
+    .resources-nav a {
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .resources-nav a:hover {
+      color: var(--stamp);
+      border-bottom-color: var(--stamp);
+    }
+    .resources-nav .sep {
+      color: var(--line-soft);
+      margin: 0 0.5rem;
+      user-select: none;
+    }
+
     @media (max-width: 640px) {
       .receipt { padding: 1.5rem 1rem 3rem; }
       .masthead .brand { font-size: 2rem; }
@@ -1195,10 +1221,14 @@
       .logo-track.compact { grid-template-columns: 1fr; }
       .fanout-grid { grid-template-columns: repeat(2, 1fr); }
       .arch-arrow { text-align: center; transform: rotate(90deg); }
+      .resources-nav { display: none; }
     }
   </style>
 </head>
 <body>
+  <nav class="resources-nav" aria-label="Resources">
+    <a href="/openapi.json">OpenAPI</a><span class="sep">&middot;</span><a href="/skill.md">Skill</a><span class="sep">&middot;</span><a href="/llms.txt">LLMs.txt</a><span class="sep">&middot;</span><a href="https://github.com/mmurrs/pricepilot" target="_blank" rel="noopener">GitHub</a><span class="sep">&middot;</span><a href="https://x402scan.com" target="_blank" rel="noopener">x402scan</a>
+  </nav>
   <svg class="logo-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
     <symbol id="mark-telegram" viewBox="0 0 32 32" preserveAspectRatio="xMidYMid meet">
       <image href="/brand-logos/telegram.svg" x="0" y="0" width="32" height="32"/>
