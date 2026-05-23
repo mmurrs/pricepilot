@@ -34,3 +34,4 @@ yarn-error.log*
 # Misc
 .cache/
 tmp/
+.understand-anything/
