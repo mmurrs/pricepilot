@@ -64,4 +64,4 @@ echo "    Endpoint: ${OPENAI_BASE_URL}"
 echo "    Telegram: configured"
 echo ""
 
-exec hermes gateway start
+exec hermes gateway run
