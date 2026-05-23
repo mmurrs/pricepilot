@@ -2,14 +2,15 @@
 
 Tool the Hermes agent calls to answer **"find me the cheapest X."**
 
-V1 is optimized for an explicit shoe demo: Hermes parses user language into
-brand/model/color/size, calls one tool, and receives a ranked offer response.
+V1 supports explicit shoe demos and generic product searches: Hermes parses user
+language into brand/model/category/color/size when available, calls one tool,
+and receives a ranked offer response.
 
 | Scope | Sources | Status |
 |---|---|---|
 | `source_scope="amazon"` | Amazon | implemented |
-| `source_scope="retail"` | Amazon + Walmart | stubbed |
-| `source_scope="all"` | Amazon + Walmart + StockX | stubbed |
+| `source_scope="retail"` | Amazon + Walmart | implemented |
+| `source_scope="all"` | Amazon + Walmart + StockX | StockX stubbed |
 
 Files in this folder:
 
@@ -29,8 +30,8 @@ Hermes should expose exactly one search tool:
 find_cheapest_product(
     brand: str,
     model: str,
-    size: {"system": "US", "gender": "men", "value": 11.5},
-    category: "shoes" = "shoes",
+    size: {"system": "US", "gender": "men", "value": 11.5} | None = None,
+    category: "shoes" | "electronics" | "toys" | "generic" = "generic",
     color: str | None = None,
     condition: "new" | "used" | "ds" | "any" = "new",
     postal_code: str = "10001",
@@ -40,8 +41,10 @@ find_cheapest_product(
 ) -> CheapestOfferResponse
 ```
 
-For the demo, use `source_scope="amazon"` and require explicit `brand`, `model`,
-and `size`. `color` is optional in the schema but should be present for shoes
+For the demo, use `source_scope="amazon"` or `source_scope="retail"` and require
+explicit `brand` and `model`. `size` is optional so the tool can support generic
+product searches, but Hermes should include it when the user asks for an exact
+shoe variant. `color` is optional in the schema but should be present for shoes
 when the user gives it, because it drastically reduces ambiguity.
 
 ### Python Integration
@@ -142,16 +145,16 @@ moving.
 
 The implemented Amazon path is:
 
-1. Build a search query from brand/model/color plus shoe gender and size.
+1. Build a search query from brand/model/color, plus shoe gender and size when provided.
    Example: `On Cloud running shoes mens size 11`.
 2. `amazon_serp(keyword=query, zip_code=postal_code, formats=["markdown", "html"])`.
 3. Parse SERP markdown/html for ranked candidate ASINs.
 4. Try the top ranked candidates, not just the first one.
 5. `amazon_pdp(asin=color_asin, formats=["html"])`.
 6. Parse Amazon `dimensionValuesDisplayData` from PDP HTML.
-7. Resolve the exact child ASIN where `(size, color)` matches the request.
+7. Resolve the exact child ASIN where `(size, color)` matches the request when size is provided.
 8. `amazon_pdp(asin=child_asin, zip_code=postal_code)`.
-9. Return the cheapest verified offer that still matches brand/model/size/color.
+9. Return the cheapest verified offer that still matches brand/model/color and, when provided, size.
 
 Hard rule: never return a SERP price as the final price. SERP price is often for
 the default-rendered size, not the requested size.
@@ -160,28 +163,12 @@ the default-rendered size, not the requested size.
 
 ## Walmart Status
 
-This PR does **not** implement Walmart yet.
-
-The public tool already reserves `source_scope="retail"` for Amazon + Walmart,
-but `_walmart_offer()` is intentionally a stub. If Hermes calls with
-`source_scope="retail"` today, the response can still include a valid Amazon
-offer, and Walmart appears under `missing_sources`:
-
-```json
-{
-  "best": { "source": "amazon", "price": 74.96 },
-  "missing_sources": [
-    { "source": "walmart", "reason": "not_implemented" }
-  ]
-}
-```
-
-The Walmart implementation path should be:
+`source_scope="retail"` now runs Amazon + Walmart. Walmart uses this path:
 
 1. `google_search(query + " site:walmart.com", country="US")`.
-2. Extract Walmart `/ip/.../<product_id>` from the top matching result.
+2. Extract Walmart `/ip/.../<product_id>` from ranked matching results.
 3. `walmart_pdp(product_id=..., zipcode=postal_code)`.
-4. Parse Walmart variant data for the requested shoe size/color.
+4. Parse Walmart variant data for requested color and, when provided, shoe size.
 5. Fetch the child item PDP and return a normal `Offer`.
 
 The older docs mentioned a `walmart_search` agent. The live probe in
@@ -190,7 +177,7 @@ account, so use `google_search -> walmart_pdp` instead.
 
 ### Walmart / Retail Scope Example
 
-This is the call shape Hermes will use once Walmart is implemented:
+This is the call shape Hermes should use for Amazon + Walmart:
 
 ```json
 {
@@ -206,8 +193,8 @@ This is the call shape Hermes will use once Walmart is implemented:
 }
 ```
 
-Current PR behavior: Amazon is attempted, Walmart is reported as
-`not_implemented`.
+If Walmart has no verified in-stock matching offer, the response reports
+`{"source": "walmart", "reason": "no_offer"}` in `missing_sources`.
 
 ---
 
@@ -255,16 +242,16 @@ URL: https://www.amazon.com/dp/B0F7D5VHMP
 Hermes should:
 
 1. Parse user intent into the explicit fields above.
-2. Ask a follow-up if required demo fields are missing, especially `size`.
+2. Ask a follow-up if the user asks for an exact shoe variant and `size` is missing.
 3. Pass `user_id` and original `query` for traceability.
-4. Use `source_scope="amazon"` for the current demo.
+4. Use `source_scope="amazon"` for Amazon-only demo flows or `source_scope="retail"` for Amazon + Walmart.
 5. Call `find_cheapest_product`.
 6. Present `best` first, then optionally summarize `all_offers` and `missing_sources`.
 
 Field guidance:
 
-- `size.value` is required for shoes.
-- `size.gender` should be explicit. Defaulting to `"men"` is acceptable only when the user says "men's" or the demo prompt implies it.
+- `size.value` is optional. Include it for exact shoe pricing; omit it for generic product searches.
+- `size.gender` should be explicit when `size` is provided. Defaulting to `"men"` is acceptable only when the user says "men's" or the demo prompt implies it.
 - `color` is optional but should be filled when present in the user request.
 - `postal_code` defaults to `10001`; set it from the user's location when available.
 - If `best` is `null`, tell the user no verified in-stock offer was found and ask for color/model refinement.

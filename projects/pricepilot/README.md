@@ -144,3 +144,19 @@ pytest tests/ -v
 ```
 
 Tests mock external services — no API keys needed.
+
+---
+
+## Vercel Landing Page
+
+The `index.html` / `vercel.json` in this folder serve a static landing page advertising the `/find_cheapest` API endpoint ($0.05/check, x402 + MPP payment).
+
+```bash
+# Preview locally
+python3 -m http.server 8088
+
+# Deploy
+npx vercel --prod
+```
+
+Root directory for Vercel: `projects/pricepilot`. Framework preset: Other.

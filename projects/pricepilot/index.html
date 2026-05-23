@@ -1,0 +1,1985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PricePilot — Agent receipt for the cheapest price</title>
+  <meta name="description" content="A pay-per-call price agent. Name a product, get a printed receipt with the cheapest verified buy link. $0.05 per check via x402 or MPP.">
+  <meta property="og:title" content="PricePilot — Agent receipt for the cheapest price">
+  <meta property="og:description" content="A pay-per-call price agent. Ask for the cheapest, get a printed receipt back. $0.05 per check via x402 or MPP.">
+  <meta name="theme-color" content="#1a1612">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f3eddc;
+      --paper-deep: #ece4cf;
+      --ink: #1a1612;
+      --ink-soft: #4a4238;
+      --muted: #8a8175;
+      --line: #2a221a;
+      --line-soft: #c7bca0;
+      --stamp: #c5341e;
+      --stamp-soft: #e8c8c2;
+      --green: #2d6b3a;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { background: var(--paper); }
+    body {
+      font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+      color: var(--ink);
+      line-height: 1.55;
+      font-size: 0.875rem;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(26, 22, 18, 0.04) 1px, transparent 0);
+      background-size: 4px 4px;
+    }
+
+    .receipt {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+      position: relative;
+    }
+
+    .paper {
+      background: var(--paper);
+      padding: 2rem 0;
+      border-top: 2px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      position: relative;
+      box-shadow: 0 4px 12px rgba(26, 22, 18, 0.08), 0 1px 3px rgba(26, 22, 18, 0.06);
+      border-radius: 2px;
+    }
+    .paper::before, .paper::after {
+      content: "";
+      position: absolute;
+      left: -1px; right: -1px;
+      height: 1px;
+      background: var(--ink);
+    }
+    .paper::before { top: 4px; }
+    .paper::after { bottom: 4px; }
+
+    .masthead {
+      text-align: center;
+      padding: 0 1.25rem 1.25rem;
+      border-bottom: 1px dashed var(--line);
+      margin-bottom: 1.5rem;
+    }
+    .masthead .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.625rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 1rem;
+    }
+    .masthead .brand {
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      font-weight: 700;
+      font-size: 2.75rem;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      color: var(--ink);
+      margin-bottom: 0.25rem;
+    }
+    .masthead .brand-sub {
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      font-style: italic;
+      font-size: 0.875rem;
+      color: var(--ink-soft);
+      margin-bottom: 1rem;
+    }
+    .masthead .ascii {
+      font-size: 0.6rem;
+      line-height: 1;
+      color: var(--ink-soft);
+      white-space: pre;
+      margin: 0.5rem 0 0.75rem;
+      letter-spacing: 0;
+    }
+    .masthead .tagline {
+      font-size: 0.75rem;
+      color: var(--ink-soft);
+      letter-spacing: 0.04em;
+    }
+    .masthead .tagline .stamp {
+      display: inline-block;
+      transform: rotate(-2deg);
+      border: 1.5px solid var(--stamp);
+      color: var(--stamp);
+      padding: 0.1rem 0.4rem;
+      margin-left: 0.5rem;
+      font-weight: 700;
+      font-size: 0.625rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .sec {
+      padding: 0 1.25rem;
+      margin-bottom: 1.75rem;
+    }
+    .sec-h {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink);
+      margin-bottom: 0.875rem;
+    }
+    .sec-h::before {
+      content: ">>";
+      color: var(--stamp);
+      font-weight: 700;
+    }
+    .sec-h .num {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 0.625rem;
+      letter-spacing: 0.1em;
+    }
+
+    .line-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      padding: 0.35rem 0;
+      font-size: 0.8125rem;
+    }
+    .line-row .label {
+      flex-shrink: 0;
+      color: var(--ink);
+    }
+    .line-row .leader {
+      flex-grow: 1;
+      border-bottom: 1px dotted var(--line-soft);
+      margin: 0 0.25rem;
+      transform: translateY(-3px);
+      min-width: 12px;
+    }
+    .line-row .val {
+      flex-shrink: 0;
+      color: var(--ink);
+      font-weight: 600;
+      text-align: right;
+    }
+    .line-row .val.green { color: var(--green); }
+
+    .lede {
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      font-size: 1.5rem;
+      line-height: 1.25;
+      color: var(--ink);
+      letter-spacing: -0.015em;
+      margin-bottom: 0.75rem;
+    }
+    .lede em {
+      font-style: italic;
+      color: var(--stamp);
+    }
+    .lede .underline {
+      text-decoration: underline;
+      text-decoration-color: var(--stamp);
+      text-decoration-thickness: 2px;
+      text-underline-offset: 4px;
+    }
+    .body-copy {
+      font-size: 0.8125rem;
+      color: var(--ink-soft);
+      line-height: 1.65;
+      margin-bottom: 1.25rem;
+      max-width: 540px;
+    }
+
+    .product-summary {
+      margin-top: -0.25rem;
+    }
+    .product-card {
+      border: 1.5px solid var(--ink);
+      background: var(--paper-deep);
+      padding: 0.95rem;
+      box-shadow: 2px 2px 0 rgba(26, 22, 18, 0.1);
+    }
+    .product-hero {
+      display: grid;
+      grid-template-columns: 1.45fr 0.75fr;
+      gap: 0.875rem;
+      align-items: stretch;
+    }
+    .product-eyebrow {
+      color: var(--stamp);
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 0.35rem;
+    }
+    .product-title {
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      color: var(--ink);
+      font-size: 1.65rem;
+      line-height: 1.1;
+      letter-spacing: -0.015em;
+      margin-bottom: 0.45rem;
+    }
+    .product-copy {
+      color: var(--ink-soft);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      margin-bottom: 0.75rem;
+    }
+    .product-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .product-tag {
+      border: 1px solid var(--line-soft);
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 0.5625rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.4rem;
+    }
+    .product-side {
+      border: 1px dashed var(--line-soft);
+      background: var(--paper);
+      padding: 0.7rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 100%;
+    }
+    .product-status {
+      color: var(--green);
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    .product-price {
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      color: var(--stamp);
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .product-price span {
+      display: block;
+      color: var(--ink-soft);
+      font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 0.25rem;
+    }
+    .product-stat {
+      border-top: 1px dashed var(--line-soft);
+      margin-top: 0.7rem;
+      padding-top: 0.55rem;
+      color: var(--ink);
+      font-size: 0.6875rem;
+      line-height: 1.45;
+    }
+    .product-stat strong {
+      display: block;
+      font-size: 0.625rem;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 0.1rem;
+    }
+    .summary-flow {
+      margin-top: 0.875rem;
+      padding-top: 0.875rem;
+      border-top: 1px dashed var(--line-soft);
+    }
+    .summary-flow-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+      gap: 0.45rem;
+      align-items: center;
+    }
+    .summary-flow-node {
+      border: 1px solid var(--line-soft);
+      background: var(--paper);
+      padding: 0.55rem 0.45rem;
+      min-height: 4rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      text-align: center;
+    }
+    .summary-flow-node.dark {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+    .summary-flow-node .node-h {
+      color: inherit;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      line-height: 1.2;
+    }
+    .summary-flow-node .node-p {
+      color: var(--ink-soft);
+      font-size: 0.625rem;
+      line-height: 1.3;
+    }
+    .summary-flow-node.dark .node-p {
+      color: var(--paper-deep);
+    }
+    .summary-flow-arrow {
+      display: inline-block;
+      color: var(--stamp);
+      font-weight: 700;
+      font-size: 0.875rem;
+      text-align: center;
+    }
+    .summary-facts {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.55rem;
+      margin-top: 0.75rem;
+    }
+    .summary-fact {
+      border-top: 1px solid var(--line-soft);
+      padding-top: 0.45rem;
+      font-size: 0.6875rem;
+      color: var(--ink-soft);
+      line-height: 1.45;
+    }
+    .summary-fact strong {
+      display: block;
+      color: var(--ink);
+      font-size: 0.625rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.15rem;
+    }
+
+    .summary-retailer-flow {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      border: 1px dashed var(--line-soft);
+      background: var(--paper-deep);
+      border-radius: 6px;
+    }
+    .retailer-flow-label {
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.65rem;
+      text-align: center;
+    }
+    .retailer-flow-track {
+      display: grid;
+      grid-template-columns: auto auto 1fr auto auto;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .retailer-flow-hub {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .hub-label {
+      font-size: 0.5625rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+    }
+    .retailer-flow-arrows {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      justify-content: center;
+      min-width: 2rem;
+    }
+    .flow-line {
+      display: block;
+      height: 1px;
+      background: repeating-linear-gradient(
+        to right,
+        var(--stamp) 0,
+        var(--stamp) 4px,
+        transparent 4px,
+        transparent 8px
+      );
+      position: relative;
+    }
+    .flow-line::after {
+      content: '→';
+      position: absolute;
+      right: -0.35rem;
+      top: -0.45rem;
+      color: var(--stamp);
+      font-weight: 700;
+      font-size: 0.75rem;
+    }
+    .flow-line.return::after {
+      content: '→';
+      right: auto;
+      left: -0.35rem;
+    }
+    .retailer-flow-targets {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .retailer-flow-card {
+      border: 1px solid var(--line-soft);
+      background: var(--paper);
+      padding: 0.4rem 0.5rem;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.4rem;
+      align-items: center;
+      border-radius: 4px;
+    }
+    .retailer-name {
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    .retailer-status {
+      font-size: 0.5625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+    .retailer-status.live {
+      color: var(--green);
+      font-weight: 700;
+    }
+    .retailer-flow-result {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.4rem;
+      border: 1px solid var(--green);
+      background: var(--paper);
+      border-radius: 4px;
+    }
+    .result-label {
+      font-size: 0.5625rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--green);
+      text-align: center;
+    }
+    .logo-mark.verify {
+      background: var(--paper);
+      color: var(--green);
+      border-color: var(--green);
+    }
+
+    .summary-built-with {
+      margin-top: 0.75rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--line-soft);
+    }
+    .built-label {
+      font-size: 0.5625rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+    .built-logos {
+      display: flex;
+      justify-content: center;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+    .built-logo-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.4rem;
+    }
+    .built-name {
+      font-size: 0.5625rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--ink-soft);
+    }
+
+    .plugin-manifest {
+      border: 1.5px solid var(--ink);
+      background: var(--paper-deep);
+      margin-top: 1rem;
+      padding: 0.875rem;
+    }
+    .plugin-row {
+      display: grid;
+      grid-template-columns: 7.5rem 1fr;
+      gap: 0.75rem;
+      padding: 0.45rem 0;
+      border-bottom: 1px dashed var(--line-soft);
+      align-items: start;
+    }
+    .plugin-row:last-child { border-bottom: none; }
+    .plugin-key {
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--stamp);
+    }
+    .plugin-val {
+      color: var(--ink);
+      font-size: 0.8125rem;
+      line-height: 1.5;
+    }
+    .plugin-val span {
+      color: var(--ink-soft);
+    }
+    .coverage-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.25rem;
+    }
+    .coverage-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      border: 1px solid var(--line);
+      padding: 0.2rem 0.45rem;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .coverage-pill.live {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+    .coverage-pill.live::before {
+      content: "●";
+      color: var(--green);
+      animation: blink 1.6s infinite;
+    }
+    .coverage-pill.next {
+      color: var(--muted);
+      border-style: dashed;
+      background: transparent;
+      opacity: 0.72;
+    }
+    .coverage-pill.next::before {
+      content: "○";
+      color: var(--muted);
+    }
+
+    .ask-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      border-top: 1px dashed var(--line-soft);
+    }
+    .ask-list li {
+      padding: 0.6rem 0;
+      border-bottom: 1px dashed var(--line-soft);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .ask-list .qmark {
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      font-style: italic;
+      font-weight: 700;
+      color: var(--stamp);
+      font-size: 1.25rem;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .ask-list .ask-text {
+      flex-grow: 1;
+      font-family: 'IBM Plex Serif', Georgia, serif;
+      font-style: italic;
+      font-size: 0.875rem;
+      color: var(--ink);
+      line-height: 1.4;
+    }
+    .ask-list .copy-btn {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid var(--line-soft);
+      color: var(--ink-soft);
+      font-family: inherit;
+      font-size: 0.625rem;
+      padding: 0.2rem 0.45rem;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+    .ask-list .copy-btn:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .ask-list .copy-btn.copied { background: var(--green); color: var(--paper); border-color: var(--green); }
+
+    .endpoint-card {
+      border: 1.5px solid var(--ink);
+      padding: 1rem;
+      background: var(--paper);
+      position: relative;
+    }
+    .endpoint-card .corner {
+      position: absolute;
+      width: 8px; height: 8px;
+      border: 1.5px solid var(--ink);
+      background: var(--paper);
+    }
+    .endpoint-card .corner.tl { top: -5px; left: -5px; }
+    .endpoint-card .corner.tr { top: -5px; right: -5px; }
+    .endpoint-card .corner.bl { bottom: -5px; left: -5px; }
+    .endpoint-card .corner.br { bottom: -5px; right: -5px; }
+
+    .endpoint-method {
+      display: inline-block;
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 0.6875rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      letter-spacing: 0.1em;
+      margin-right: 0.5rem;
+    }
+    .endpoint-path {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .endpoint-meta {
+      font-size: 0.75rem;
+      color: var(--ink-soft);
+      margin-top: 0.625rem;
+      line-height: 1.6;
+    }
+    .price-stamp {
+      display: inline-block;
+      border: 1.5px solid var(--stamp);
+      color: var(--stamp);
+      font-weight: 700;
+      padding: 0.15rem 0.4rem;
+      font-size: 0.75rem;
+      letter-spacing: 0.04em;
+      margin-left: 0.5rem;
+      transform: rotate(-1deg);
+    }
+
+    .retailers {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.875rem;
+      padding-top: 0.75rem;
+      border-top: 1px dashed var(--line-soft);
+    }
+    .retail-badge {
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.55rem;
+      border: 1px solid var(--line);
+      color: var(--ink-soft);
+      background: var(--paper);
+    }
+    .retail-badge.live {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+    .retail-badge.live::before {
+      content: "● ";
+      color: var(--green);
+      animation: blink 1.6s infinite;
+    }
+    @keyframes blink { 50% { opacity: 0.35; } }
+    .retail-badge.queue {
+      border-style: dashed;
+      color: var(--muted);
+    }
+
+    .checklist {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .checklist li {
+      padding: 0.5rem 0;
+      border-bottom: 1px dashed var(--line-soft);
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+    .checklist li:last-child { border-bottom: none; }
+    .checklist .num {
+      flex-shrink: 0;
+      font-weight: 700;
+      color: var(--stamp);
+      font-size: 0.75rem;
+      width: 1.5rem;
+    }
+    .checklist .what {
+      flex-grow: 1;
+      font-size: 0.8125rem;
+      color: var(--ink-soft);
+      line-height: 1.55;
+    }
+    .checklist .what strong { color: var(--ink); }
+
+    .flow-diagram {
+      border-top: 1px dashed var(--line-soft);
+      border-bottom: 1px dashed var(--line-soft);
+      padding: 0.5rem 0;
+      margin-top: 0.75rem;
+    }
+    .flow-step {
+      display: grid;
+      grid-template-columns: 2rem 1fr;
+      gap: 0.75rem;
+      padding: 0.625rem 0;
+      border-bottom: 1px dashed var(--line-soft);
+    }
+    .flow-step:last-child { border-bottom: none; }
+    .flow-step .mark {
+      color: var(--stamp);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      font-size: 0.6875rem;
+      padding-top: 0.125rem;
+    }
+    .flow-step .title {
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 0.8125rem;
+      margin-bottom: 0.125rem;
+    }
+    .flow-step .desc {
+      color: var(--ink-soft);
+      font-size: 0.75rem;
+      line-height: 1.55;
+    }
+
+    .arch-diagram {
+      margin-top: 0.875rem;
+      border: 1.5px solid var(--ink);
+      padding: 0.875rem;
+      background: var(--paper-deep);
+      color: var(--ink);
+      box-shadow: 2px 2px 0 rgba(26, 22, 18, 0.08);
+    }
+    .arch-kicker {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      color: var(--muted);
+      font-size: 0.625rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .arch-dots {
+      display: flex;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+    .arch-dot {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--line-soft);
+    }
+    .arch-dot.live { background: var(--green); }
+    .arch-dot.pay { background: var(--stamp); }
+    .logo-track {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .logo-track.compact {
+      grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+      margin-top: 0.75rem;
+    }
+    .logo-card {
+      border: 1px solid var(--line-soft);
+      background: var(--paper);
+      padding: 0.65rem 0.6rem;
+      min-height: 4.25rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.5rem;
+      align-items: center;
+      border-radius: 6px;
+    }
+    .logo-card.dark {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+    .logo-card.muted {
+      opacity: 0.55;
+      border-style: dashed;
+      background: transparent;
+    }
+    .logo-mark {
+      width: 2rem;
+      height: 2rem;
+      border: 1.5px solid var(--ink);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.6875rem;
+      letter-spacing: 0.04em;
+      background: var(--paper);
+      color: var(--ink);
+      flex-shrink: 0;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .logo-card.dark .logo-mark { border-color: var(--paper); }
+    .logo-mark.wide { width: 3.05rem; }
+    .logo-mark .mark-svg {
+      width: 1.55rem;
+      height: 1.55rem;
+      display: block;
+    }
+    .logo-mark.wide .mark-svg { width: 2.65rem; }
+    .logo-mark.telegram { background: #229ed9; color: #fff; border-color: #229ed9; }
+    .logo-mark.hermes { background: var(--stamp); color: var(--paper); border-color: var(--stamp); }
+    .logo-mark.pricepilot { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .logo-mark.nimble { background: #fff; color: #111; }
+    .logo-mark.amazon { background: #ff9900; color: #111; border-color: #ff9900; }
+    .logo-mark.walmart { background: #0071ce; color: #fff; border-color: #0071ce; }
+    .logo-mark.target { background: #cc0000; color: #fff; border-color: #cc0000; }
+    .logo-mark.ebay { background: #e5e0cd; color: #111; }
+    .logo-mark.facebook { background: #1877f2; color: #fff; border-color: #1877f2; }
+    .logo-mark.clickhouse { background: #ffcc01; color: #111; border-color: #111; }
+    .logo-mark.senso { background: #5b4dd6; color: #fff; border-color: #5b4dd6; }
+    .logo-mark.payment { background: var(--green); color: var(--paper); border-color: var(--green); }
+    .logo-mark.amazon,
+    .logo-mark.ebay {
+      background: var(--paper);
+      border-color: var(--line-soft);
+    }
+    .logo-sprite { display: none; }
+    .logo-copy .node-h {
+      display: block;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 0.2rem;
+    }
+    .logo-copy .node-p {
+      display: block;
+      font-size: 0.6875rem;
+      line-height: 1.45;
+      color: var(--ink-soft);
+    }
+    .logo-card.dark .node-p { color: var(--paper-deep); }
+    .arch-arrow {
+      display: inline-block;
+      color: var(--stamp);
+      font-weight: 700;
+      font-size: 0.875rem;
+      text-align: center;
+    }
+    .fanout-panel {
+      margin: 0.75rem 0;
+      padding: 0.75rem;
+      border-top: 1px dashed var(--line-soft);
+      border-bottom: 1px dashed var(--line-soft);
+    }
+    .fanout-label {
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+    .fanout-hint {
+      font-size: 0.875rem;
+      color: var(--stamp);
+      font-weight: 700;
+    }
+    .fanout-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.4rem;
+    }
+    .retailer-logo {
+      border: 1px solid var(--line-soft);
+      min-height: 4.4rem;
+      padding: 0.55rem 0.4rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      background: var(--paper);
+      text-align: center;
+      border-radius: 6px;
+    }
+    .retailer-logo.next {
+      opacity: 0.48;
+      border-style: dashed;
+      background: transparent;
+    }
+    .retailer-logo .brand-word {
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      line-height: 1.2;
+    }
+    .retailer-logo .status {
+      font-size: 0.5625rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .retailer-logo .status.live {
+      color: var(--green);
+      font-weight: 700;
+    }
+    .fanout-return-flow {
+      margin-top: 0.6rem;
+      padding-top: 0.6rem;
+      border-top: 1px dashed var(--line-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+    .return-arrow {
+      font-size: 1rem;
+      color: var(--green);
+      font-weight: 700;
+    }
+    .return-label {
+      font-size: 0.625rem;
+      color: var(--ink-soft);
+      font-style: italic;
+    }
+    .receipt-json {
+      margin-top: 0.75rem;
+      padding: 0.65rem 0.7rem;
+      border: 1px dashed var(--line-soft);
+      color: var(--ink-soft);
+      font-size: 0.6875rem;
+      line-height: 1.5;
+      border-radius: 6px;
+    }
+    .receipt-json strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    pre {
+      background: var(--ink);
+      color: var(--paper);
+      padding: 1rem 1.125rem;
+      font-family: inherit;
+      font-size: 0.75rem;
+      line-height: 1.65;
+      overflow-x: auto;
+      border: 1.5px solid var(--ink);
+      margin: 0.625rem 0;
+    }
+    pre.paper-pre {
+      background: var(--paper-deep);
+      color: var(--ink);
+      border: 1.5px solid var(--line);
+    }
+    code.inline {
+      background: var(--paper-deep);
+      padding: 0.05rem 0.3rem;
+      border: 1px solid var(--line-soft);
+      font-size: 0.75rem;
+    }
+
+    .totals {
+      margin: 0.5rem 0 0.75rem;
+      padding: 0.75rem 0;
+      border-top: 1.5px solid var(--ink);
+      border-bottom: 1.5px solid var(--ink);
+    }
+    .totals .total-row { font-size: 0.875rem; }
+    .totals .total-row.grand { font-weight: 700; font-size: 1rem; color: var(--ink); }
+    .totals .total-row.grand .val { color: var(--stamp); font-size: 1.125rem; }
+
+    .ticket-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1rem;
+      border-bottom: 1.5px solid var(--ink);
+    }
+    .ticket-tab {
+      flex: 1;
+      background: var(--paper);
+      border: 1.5px solid var(--ink);
+      border-bottom: none;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.65rem 0.5rem;
+      cursor: pointer;
+      margin-right: -1.5px;
+      transition: all 0.15s;
+      position: relative;
+    }
+    .ticket-tab:last-child { margin-right: 0; }
+    .ticket-tab:hover { background: var(--paper-deep); }
+    .ticket-tab.active {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .tab-content { display: none; padding-top: 0.5rem; }
+    .tab-content.active { display: block; }
+
+    .file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .file-list li {
+      padding: 0.55rem 0;
+      border-bottom: 1px dashed var(--line-soft);
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      font-size: 0.8125rem;
+    }
+    .file-list li:last-child { border-bottom: none; }
+    .file-list a {
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .file-list a:hover { color: var(--stamp); }
+    .file-list .file-tag {
+      flex-shrink: 0;
+      font-size: 0.5625rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      width: 70px;
+    }
+
+    .footer-receipt {
+      text-align: center;
+      padding: 1.25rem;
+      border-top: 1px dashed var(--line);
+      font-size: 0.6875rem;
+      color: var(--ink-soft);
+      letter-spacing: 0.04em;
+    }
+    .footer-receipt .barcode {
+      font-size: 1.25rem;
+      letter-spacing: 0;
+      color: var(--ink);
+      line-height: 1;
+      margin: 0.5rem 0;
+      user-select: none;
+      letter-spacing: 0.4em;
+      font-weight: 700;
+    }
+    .footer-receipt .links {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+    .footer-receipt .links a {
+      color: var(--ink-soft);
+      text-decoration: none;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .footer-receipt .links a:hover { color: var(--stamp); border-color: var(--stamp); }
+
+    .verified-stamp {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transform: rotate(-6deg);
+      border: 2.5px solid var(--stamp);
+      color: var(--stamp);
+      padding: 0.35rem 0.75rem;
+      font-weight: 700;
+      font-size: 0.6875rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      background: var(--paper);
+      box-shadow: 1px 1px 0 var(--stamp);
+    }
+
+    .sponsors-rec {
+      text-align: center;
+      padding: 1rem 1.25rem;
+      border-top: 1px dashed var(--line);
+      border-bottom: 1px dashed var(--line);
+      font-size: 0.625rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .sponsors-rec strong {
+      color: var(--ink);
+      font-weight: 700;
+      margin: 0 0.625rem;
+      letter-spacing: 0.1em;
+    }
+
+    @media (max-width: 640px) {
+      .receipt { padding: 1.5rem 1rem 3rem; }
+      .masthead .brand { font-size: 2rem; }
+      .lede { font-size: 1.25rem; }
+      .product-hero { grid-template-columns: 1fr; }
+      .summary-flow-row { grid-template-columns: 1fr; }
+      .summary-facts { grid-template-columns: 1fr; }
+      .summary-flow-arrow { transform: rotate(90deg); }
+      .plugin-row { grid-template-columns: 1fr; gap: 0.15rem; }
+      .ticket-tab { font-size: 0.625rem; padding: 0.55rem 0.375rem; letter-spacing: 0.04em; }
+      .logo-track,
+      .logo-track.compact { grid-template-columns: 1fr; }
+      .fanout-grid { grid-template-columns: repeat(2, 1fr); }
+      .arch-arrow { text-align: center; transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+  <svg class="logo-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="mark-telegram" viewBox="0 0 32 32">
+      <path fill="currentColor" d="M27.4 6.1 4.8 14.8c-1.2.5-1.2 1.3-.2 1.6l5.8 1.8 2.2 6.8c.3.8.7 1 1.4.5l3.3-2.7 5.7 4.2c1 .6 1.6.3 1.8-1l4.1-19c.3-1.2-.5-1.7-1.5-.9Zm-16 11.7 13.4-8.5-10.9 10.1-.4 3.6-2.1-5.2Z"/>
+    </symbol>
+    <symbol id="mark-hermes" viewBox="0 0 32 32">
+      <path fill="currentColor" d="M5 7.8c5.6.1 9.4 2.1 11.7 6 2.1-3.7 5.6-5.7 10.3-6l-3.2 3.6 4.4.3-4.8 2.7 3.7 1.3-5.4 1.1 2.7 2.2h-5.2c-.4 0-.8.2-1 .6L16.6 23l-1.7-3.4c-.2-.4-.6-.6-1-.6H8.6l2.8-2.2-5.5-1.1 3.8-1.3-4.9-2.7 4.4-.3L5 7.8Z"/>
+      <path fill="currentColor" d="M12.4 9.3h2.4v5.1h3.8V9.3H21v13.4h-2.4v-5.9h-3.8v5.9h-2.4V9.3Z"/>
+    </symbol>
+    <symbol id="mark-pricepilot" viewBox="0 0 32 32">
+      <path fill="currentColor" d="M8 4h12l4 4v12.5a7.6 7.6 0 0 0-2.4-1.1V9.2h-4.7V6.4H10.4v18.1h6.4a7.7 7.7 0 0 0 1 2.4H8V4Z"/>
+      <path fill="currentColor" d="M12 11h7.4v1.8H12V11Zm0 4h7.4v1.8H12V15Zm0 4h4.6v1.8H12V19Z"/>
+      <path fill="currentColor" d="M22.6 21.3a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8Zm0 1.7a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4Z"/>
+      <path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="m25 27.2 3 3"/>
+    </symbol>
+    <symbol id="mark-payment" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="3"/>
+      <path fill="currentColor" d="M16.8 7.8v2.1c2.4.2 4 .9 5.2 2.1l-2 2.2c-.9-.8-2-1.3-3.4-1.5v2.4c4.1.8 5.8 2.1 5.8 4.7 0 2.5-2 4.3-5.6 4.7v2.2h-1.9v-2.1c-2.9-.2-5.1-1.1-6.6-2.7l2-2.2c1.2 1.1 2.6 1.8 4.7 2v-2.6c-3.7-.8-5.6-2-5.6-4.5 0-2.4 2-4.2 5.5-4.6V7.8h1.9Zm-1.9 6.9v-2c-1.3.2-2 .8-2 1.6s.5 1.2 2 1.6v-1.2Zm1.7 4.8v2.2c1.5-.2 2.3-.8 2.3-1.7 0-.8-.6-1.3-2.3-1.8v1.3Z"/>
+    </symbol>
+    <symbol id="mark-amazon" viewBox="0 0 48 32">
+      <text x="4" y="16" fill="#111" font-family="Arial, Helvetica, sans-serif" font-size="10.5" font-weight="700">amazon</text>
+      <path fill="none" stroke="#ff9900" stroke-width="2.2" stroke-linecap="round" d="M10 22c7.8 4 17.5 4.2 27.2-.3"/>
+      <path fill="#ff9900" d="m34.6 19.8 5.2-.3-3.2 4.1c.4-1.7-.1-3-2-3.8Z"/>
+    </symbol>
+    <symbol id="mark-walmart" viewBox="0 0 32 32">
+      <g fill="currentColor">
+        <rect x="14.2" y="3.4" width="3.6" height="8.5" rx="1.8"/>
+        <rect x="14.2" y="20.1" width="3.6" height="8.5" rx="1.8"/>
+        <rect x="20.1" y="14.2" width="8.5" height="3.6" rx="1.8"/>
+        <rect x="3.4" y="14.2" width="8.5" height="3.6" rx="1.8"/>
+        <rect x="19" y="6.6" width="3.6" height="8.5" rx="1.8" transform="rotate(45 20.8 10.8)"/>
+        <rect x="9.4" y="16.9" width="3.6" height="8.5" rx="1.8" transform="rotate(45 11.2 21.2)"/>
+      </g>
+    </symbol>
+    <symbol id="mark-target" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="12" fill="currentColor"/>
+      <circle cx="16" cy="16" r="7" fill="#fff"/>
+      <circle cx="16" cy="16" r="3.5" fill="currentColor"/>
+    </symbol>
+    <symbol id="mark-ebay" viewBox="0 0 48 32">
+      <text x="2" y="21" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">
+        <tspan fill="#e53238">e</tspan><tspan fill="#0064d2">b</tspan><tspan fill="#f5af02">a</tspan><tspan fill="#86b817">y</tspan>
+      </text>
+    </symbol>
+    <symbol id="mark-facebook" viewBox="0 0 32 32">
+      <path fill="currentColor" d="M18.4 28V17.3h3.5l.6-4.2h-4.1v-2.7c0-1.2.4-2.1 2.1-2.1h2.2V4.6c-.4-.1-1.8-.2-3.4-.2-3.4 0-5.7 2.1-5.7 5.8v2.9H10v4.2h3.6V28h4.8Z"/>
+    </symbol>
+    <symbol id="mark-nimble" viewBox="0 0 32 32">
+      <path fill="currentColor" d="M6 25.5V6.5h5.1l9.8 11.7V6.5H26v19h-5.1L11.1 13.8v11.7H6Z"/>
+      <path fill="var(--green)" d="M20.8 6.5H26l-9.5 19h-5.2l9.5-19Z"/>
+    </symbol>
+    <symbol id="mark-clickhouse" viewBox="0 0 32 32">
+      <rect x="5" y="6" width="4.2" height="20" fill="currentColor"/>
+      <rect x="11.5" y="6" width="4.2" height="20" fill="currentColor"/>
+      <rect x="18" y="6" width="4.2" height="20" fill="currentColor"/>
+      <rect x="24.5" y="6" width="3.5" height="9" fill="#ef2a2a"/>
+      <rect x="24.5" y="18.5" width="3.5" height="7.5" fill="#ef2a2a"/>
+    </symbol>
+    <symbol id="mark-senso" viewBox="0 0 32 32">
+      <path fill="none" stroke="currentColor" stroke-width="2.2" d="M8 4.5h12.2L25 9.3v18.2H8z"/>
+      <path fill="currentColor" d="M19.4 11.4c-1-.7-2.1-1.1-3.4-1.1-1.5 0-2.5.6-2.5 1.5 0 1 1.2 1.3 3.2 1.8 2.6.6 4.7 1.5 4.7 4.2 0 2.9-2.3 4.6-5.5 4.6-2.4 0-4.2-.7-5.7-2.1l1.7-2.1c1.1 1 2.5 1.6 4.1 1.6 1.6 0 2.6-.6 2.6-1.6 0-.9-.9-1.3-3-1.8-2.6-.6-4.8-1.4-4.8-4.2 0-2.6 2.1-4.4 5.2-4.4 2 0 3.6.5 5 1.5l-1.6 2.1Z"/>
+    </symbol>
+    <symbol id="mark-verify" viewBox="0 0 32 32">
+      <path fill="currentColor" d="M13.6 22.6 7.8 16.8l2.3-2.3 3.5 3.5 8.3-8.6 2.3 2.2-10.6 11Z"/>
+      <path fill="none" stroke="currentColor" stroke-width="2.2" d="M16 4.5 19.4 7l4.2-.4 1.4 4 3.2 2.8-1.7 3.8.7 4.2-3.8 1.9-2.5 3.4-4.2-1-4.1 1-2.5-3.4-3.8-1.9.7-4.2-1.7-3.8L8.5 10l1.4-4 4.2.4L16 4.5Z"/>
+    </symbol>
+  </svg>
+
+  <main class="receipt">
+    <div class="paper">
+
+      <header class="masthead">
+        <div class="meta-row">
+          <span>Vol. 01 &middot; No. 01</span>
+          <span>May 23, 2026</span>
+        </div>
+        <h1 class="brand">PRICE&middot;PILOT</h1>
+        <p class="brand-sub">Your agent's shopping receipt — the cheapest price, verified</p>
+        <pre class="ascii" style="background: transparent; color: var(--ink-soft); border: none; padding: 0; margin: 0.5rem 0 0.75rem;">  ┌─────────────────────────────┐
+  │  ASK · RESOLVE · VERIFY · PAY │
+  └─────────────────────────────┘</pre>
+        <p class="tagline">
+          Pay-per-call price agent — just a nickel to never overpay
+          <span class="stamp">$0.05 / check</span>
+        </p>
+      </header>
+
+      <section class="sec product-summary">
+        <p class="sec-h">Product summary <span class="num">[at a glance]</span></p>
+        <div class="product-card">
+          <div class="product-hero">
+            <div>
+              <div class="product-eyebrow">Hermes agent plugin</div>
+              <h2 class="product-title">Cheapest-product checks for agent commerce.</h2>
+              <p class="product-copy">PricePilot is the paid shopping tool Hermes calls when a shopper asks for the best buy. It turns one structured request into a verified retailer result with a buy link and receipt JSON.</p>
+              <div class="product-tags" aria-label="PricePilot product tags">
+                <span class="product-tag">Telegram-ready</span>
+                <span class="product-tag">Amazon + Walmart live</span>
+                <span class="product-tag">Shoes + general products</span>
+                <span class="product-tag">x402 / MPP</span>
+              </div>
+            </div>
+            <aside class="product-side" aria-label="PricePilot pricing and endpoint">
+              <div>
+                <div class="product-status">Live service</div>
+                <div class="product-price">$0.05<span>per verified check</span></div>
+              </div>
+              <div class="product-stat">
+                <strong>Endpoint</strong>
+                <code class="inline">POST /find_cheapest</code>
+              </div>
+              <div class="product-stat">
+                <strong>Tool call</strong>
+                <code class="inline">find_cheapest_product</code>
+              </div>
+            </aside>
+          </div>
+          <div class="summary-flow" aria-label="High level PricePilot product flow">
+            <div class="summary-flow-row">
+              <div class="summary-flow-node">
+                <span class="logo-mark telegram"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-telegram"></use></svg></span>
+                <span class="node-h">Telegram</span>
+                <span class="node-p">shopper asks</span>
+              </div>
+              <span class="summary-flow-arrow">&rarr;</span>
+              <div class="summary-flow-node dark">
+                <span class="logo-mark hermes"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-hermes"></use></svg></span>
+                <span class="node-h">Hermes</span>
+                <span class="node-p">reasons + structures</span>
+              </div>
+              <span class="summary-flow-arrow">&rarr;</span>
+              <div class="summary-flow-node">
+                <span class="logo-mark pricepilot"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-pricepilot"></use></svg></span>
+                <span class="node-h">PricePilot</span>
+                <span class="node-p">verifies market</span>
+              </div>
+              <span class="summary-flow-arrow">&rarr;</span>
+              <div class="summary-flow-node">
+                <span class="logo-mark payment"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-payment"></use></svg></span>
+                <span class="node-h">Receipt</span>
+                <span class="node-p">best offer + proof</span>
+              </div>
+            </div>
+          </div>
+          <div class="summary-retailer-flow" aria-label="PricePilot retailer resolution">
+            <div class="retailer-flow-label">Under the hood — PricePilot resolves in parallel</div>
+            <div class="retailer-flow-track">
+              <div class="retailer-flow-hub">
+                <span class="logo-mark pricepilot"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-pricepilot"></use></svg></span>
+                <span class="hub-label">PricePilot</span>
+              </div>
+              <div class="retailer-flow-arrows" aria-hidden="true">
+                <span class="flow-line"></span>
+                <span class="flow-line"></span>
+              </div>
+              <div class="retailer-flow-targets">
+                <div class="retailer-flow-card">
+                  <span class="logo-mark amazon wide"><svg class="mark-svg" viewBox="0 0 48 32" aria-hidden="true" focusable="false"><use href="#mark-amazon"></use></svg></span>
+                  <span class="retailer-name">Amazon</span>
+                  <span class="retailer-status live">live</span>
+                </div>
+                <div class="retailer-flow-card">
+                  <span class="logo-mark walmart"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-walmart"></use></svg></span>
+                  <span class="retailer-name">Walmart</span>
+                  <span class="retailer-status live">live</span>
+                </div>
+              </div>
+              <div class="retailer-flow-arrows" aria-hidden="true">
+                <span class="flow-line return"></span>
+                <span class="flow-line return"></span>
+              </div>
+              <div class="retailer-flow-result">
+                <span class="logo-mark verify"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-verify"></use></svg></span>
+                <span class="result-label">Verified cheapest</span>
+              </div>
+            </div>
+          </div>
+          <div class="summary-facts">
+            <div class="summary-fact">
+              <strong>Buyer input</strong>
+              Brand, model, category, color, condition, and optional size.
+            </div>
+            <div class="summary-fact">
+              <strong>Retail coverage</strong>
+              Amazon and Walmart live; Target, eBay, and Facebook queued.
+            </div>
+            <div class="summary-fact">
+              <strong>Agent output</strong>
+              Best offer, all offers, missing sources, product_id, and observation IDs.
+            </div>
+          </div>
+          <div class="summary-built-with" aria-label="Technology partners">
+            <div class="built-label">Built with</div>
+            <div class="built-logos">
+              <div class="built-logo-card">
+                <span class="logo-mark nimble"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-nimble"></use></svg></span>
+                <span class="built-name">Nimble</span>
+              </div>
+              <div class="built-logo-card">
+                <span class="logo-mark clickhouse"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-clickhouse"></use></svg></span>
+                <span class="built-name">ClickHouse</span>
+              </div>
+              <div class="built-logo-card">
+                <span class="logo-mark senso"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-senso"></use></svg></span>
+                <span class="built-name">Senso</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">Hermes agent plugin <span class="num">[overview]</span></p>
+        <p class="lede">PricePilot is the shopping plugin behind the <em>Hermes Telegram agent</em>.</p>
+        <p class="body-copy">A shopper texts Hermes in Telegram. Hermes reasons over the request, structures a product spec, calls PricePilot, then answers with the cheapest verified buy link. PricePilot is the paid execution layer underneath: one tool call resolves the market, verifies the offer, records the observation, and returns the receipt.</p>
+        <div class="arch-diagram" aria-label="Hermes PricePilot visual flow">
+          <div class="arch-kicker">
+            <span>Hermes commerce loop</span>
+            <span class="arch-dots" aria-hidden="true"><span class="arch-dot live"></span><span class="arch-dot pay"></span><span class="arch-dot"></span></span>
+          </div>
+          <div class="logo-track compact">
+            <div class="logo-card">
+              <span class="logo-mark telegram"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-telegram"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">Telegram</span>
+                <span class="node-p">shopper asks in chat</span>
+              </span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="logo-card dark">
+              <span class="logo-mark hermes"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-hermes"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">Hermes</span>
+                <span class="node-p">reasoning + structure</span>
+              </span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="logo-card">
+              <span class="logo-mark pricepilot"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-pricepilot"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">PricePilot</span>
+                <span class="node-p">paid cheapest tool</span>
+              </span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="logo-card">
+              <span class="logo-mark payment"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-payment"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">Receipt</span>
+                <span class="node-p">best offer + proof</span>
+              </span>
+            </div>
+          </div>
+          <div class="fanout-panel">
+            <div class="fanout-label">
+              <span>Retailers Hermes can compare</span>
+              <span class="fanout-hint" aria-hidden="true">⤵</span>
+            </div>
+            <div class="fanout-grid">
+              <div class="retailer-logo">
+                <span class="logo-mark amazon wide"><svg class="mark-svg" viewBox="0 0 48 32" aria-hidden="true" focusable="false"><use href="#mark-amazon"></use></svg></span>
+                <span class="brand-word">Amazon</span>
+                <span class="status live">live</span>
+              </div>
+              <div class="retailer-logo">
+                <span class="logo-mark walmart"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-walmart"></use></svg></span>
+                <span class="brand-word">Walmart</span>
+                <span class="status live">live</span>
+              </div>
+              <div class="retailer-logo next">
+                <span class="logo-mark target"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-target"></use></svg></span>
+                <span class="brand-word">Target</span>
+                <span class="status">next</span>
+              </div>
+              <div class="retailer-logo next">
+                <span class="logo-mark ebay wide"><svg class="mark-svg" viewBox="0 0 48 32" aria-hidden="true" focusable="false"><use href="#mark-ebay"></use></svg></span>
+                <span class="brand-word">eBay</span>
+                <span class="status">next</span>
+              </div>
+              <div class="retailer-logo next">
+                <span class="logo-mark facebook"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-facebook"></use></svg></span>
+                <span class="brand-word">Facebook</span>
+                <span class="status">next</span>
+              </div>
+            </div>
+            <div class="fanout-return-flow" aria-hidden="true">
+              <span class="return-arrow">↑</span>
+              <span class="return-label">All offers returned with verified cheapest</span>
+            </div>
+          </div>
+        </div>
+        <div class="plugin-manifest">
+          <div class="plugin-row">
+            <div class="plugin-key">Agent</div>
+            <div class="plugin-val">Hermes <span>&mdash; user-facing reasoning, follow-ups, and final answer.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Channel</div>
+            <div class="plugin-val">Telegram <span>&mdash; shoppers ask in chat; Hermes returns a receipt-style answer.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Plugin</div>
+            <div class="plugin-val"><code class="inline">find_cheapest_product</code> <span>&mdash; the paid Hermes action for live shopping data.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Input</div>
+            <div class="plugin-val">brand + model <span>with category, color, condition, and optional shoe size when relevant.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Coverage</div>
+            <div class="plugin-val">
+              <div class="coverage-strip" aria-label="Retailer coverage">
+                <span class="coverage-pill live">Amazon</span>
+                <span class="coverage-pill live">Walmart</span>
+                <span class="coverage-pill next">Target</span>
+                <span class="coverage-pill next">eBay</span>
+                <span class="coverage-pill next">Facebook</span>
+              </div>
+            </div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Work</div>
+            <div class="plugin-val">find cheapest across live retailers <span>then reject stale SERP prices, wrong variants, and bad conditions.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Output</div>
+            <div class="plugin-val">best offer + all offers + missing sources <span>ready for Hermes to answer the user.</span></div>
+          </div>
+          <div class="plugin-row">
+            <div class="plugin-key">Powered by</div>
+            <div class="plugin-val">Nimble, ClickHouse, Senso <span>and a $0.05 x402 / MPP payment gate.</span></div>
+          </div>
+        </div>
+        <div style="margin-top: 1rem; padding: 0.75rem; background: var(--paper-deep); border: 1px dashed var(--line-soft); border-radius: 4px; font-size: 0.8125rem; color: var(--ink-soft); font-style: italic;">
+          <span style="font-style: normal; font-weight: 700; color: var(--stamp); margin-right: 0.375rem;">psst—</span>Every price you get was checked <em>just for you</em>. No stale SERP guesses. Just the real buyable price, fresh off the shelf.
+        </div>
+        <div class="line-row">
+          <span class="label">PAID IN</span>
+          <span class="leader"></span>
+          <span class="val">USDC &middot; x402 / MPP</span>
+        </div>
+        <div class="line-row">
+          <span class="label">SETTLEMENT</span>
+          <span class="leader"></span>
+          <span class="val">Base &amp; Tempo</span>
+        </div>
+        <div class="line-row">
+          <span class="label">DISCOVERY</span>
+          <span class="leader"></span>
+          <span class="val">AgentCash &middot; OpenAPI</span>
+        </div>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">Things your agent can ask <span class="num">[4]</span></p>
+        <div style="margin-bottom: 0.75rem; font-size: 0.6875rem; color: var(--muted); font-style: italic;">
+          Hermes turns each ask into a structured call. Shoes can include size; generic products do not need one.
+        </div>
+        <ul class="ask-list">
+          <li>
+            <span class="qmark">?</span>
+            <span class="ask-text">Cheapest Nike Killshot 2 Sail/Lucid Green men's size 11.5</span>
+            <button class="copy-btn" onclick="copyAsk(this)">copy</button>
+          </li>
+          <li>
+            <span class="qmark">?</span>
+            <span class="ask-text">Cheapest Sony WH-1000XM5 headphones in black</span>
+            <button class="copy-btn" onclick="copyAsk(this)">copy</button>
+          </li>
+          <li>
+            <span class="qmark">?</span>
+            <span class="ask-text">Cheapest Hoka Clifton 9 women's size 8</span>
+            <button class="copy-btn" onclick="copyAsk(this)">copy</button>
+          </li>
+          <li>
+            <span class="qmark">?</span>
+            <span class="ask-text">Cheapest LEGO 10497 Galaxy Explorer set</span>
+            <button class="copy-btn" onclick="copyAsk(this)">copy</button>
+          </li>
+        </ul>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">How Hermes uses it <span class="num">[agent flow]</span></p>
+        <p class="body-copy">The demo story is not an endpoint in isolation. Hermes is the Telegram shopping agent; PricePilot is the paid plugin Hermes calls when it needs grounded market data.</p>
+        <div class="flow-diagram">
+          <div class="flow-step">
+            <span class="mark">01</span>
+            <div>
+              <div class="title">User texts Hermes in Telegram</div>
+              <div class="desc">"Find the cheapest Sony WH-1000XM5 in black" or "Nike Killshot 2 men's size 11.5."</div>
+            </div>
+          </div>
+          <div class="flow-step">
+            <span class="mark">02</span>
+            <div>
+              <div class="title">Hermes structures the request</div>
+              <div class="desc">Brand, model, category, color, optional size, condition, and source scope become one tool call.</div>
+            </div>
+          </div>
+          <div class="flow-step">
+            <span class="mark">03</span>
+            <div>
+              <div class="title">PricePilot verifies the market</div>
+              <div class="desc">Amazon and Walmart are resolved live today. Target, eBay, and Facebook Marketplace are queued as the next retailer connectors.</div>
+            </div>
+          </div>
+          <div class="flow-step">
+            <span class="mark">04</span>
+            <div>
+              <div class="title">Hermes completes the job</div>
+              <div class="desc">The cheapest verified offer comes back with seller, stock, URL, observation IDs, and missing-source reasons.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">Architecture <span class="num">[live path]</span></p>
+        <p class="body-copy">The complete vision is an agent commerce loop: Hermes handles reasoning and user interaction, PricePilot handles paid market data, and ClickHouse keeps the price memory for history, alerts, and reports.</p>
+        <div class="arch-diagram" aria-label="PricePilot architecture diagram">
+          <div class="arch-kicker">
+            <span>Request to receipt architecture</span>
+            <span class="arch-dots" aria-hidden="true"><span class="arch-dot live"></span><span class="arch-dot pay"></span><span class="arch-dot"></span></span>
+          </div>
+          <div class="logo-track compact">
+            <div class="logo-card">
+              <span class="logo-mark telegram"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-telegram"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">Telegram</span>
+                <span class="node-p">chat surface for shoppers</span>
+              </span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="logo-card dark">
+              <span class="logo-mark hermes"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-hermes"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">Hermes Agent</span>
+                <span class="node-p">fills the product spec</span>
+              </span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="logo-card">
+              <span class="logo-mark pricepilot"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-pricepilot"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">PricePilot</span>
+                <span class="node-p">find_cheapest_product</span>
+              </span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="logo-card">
+              <span class="logo-mark payment"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-payment"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">x402 / MPP</span>
+                <span class="node-p">$0.05 paid unlock</span>
+              </span>
+            </div>
+          </div>
+          <div class="fanout-panel">
+            <div class="fanout-label">Nimble retailer fan-out</div>
+            <div class="fanout-grid">
+              <div class="retailer-logo">
+                <span class="logo-mark amazon wide"><svg class="mark-svg" viewBox="0 0 48 32" aria-hidden="true" focusable="false"><use href="#mark-amazon"></use></svg></span>
+                <span class="brand-word">Amazon</span>
+                <span class="status">live</span>
+              </div>
+              <div class="retailer-logo">
+                <span class="logo-mark walmart"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-walmart"></use></svg></span>
+                <span class="brand-word">Walmart</span>
+                <span class="status">live</span>
+              </div>
+              <div class="retailer-logo next">
+                <span class="logo-mark target"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-target"></use></svg></span>
+                <span class="brand-word">Target</span>
+                <span class="status">next</span>
+              </div>
+              <div class="retailer-logo next">
+                <span class="logo-mark ebay wide"><svg class="mark-svg" viewBox="0 0 48 32" aria-hidden="true" focusable="false"><use href="#mark-ebay"></use></svg></span>
+                <span class="brand-word">eBay</span>
+                <span class="status">next</span>
+              </div>
+              <div class="retailer-logo next">
+                <span class="logo-mark facebook"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-facebook"></use></svg></span>
+                <span class="brand-word">Facebook</span>
+                <span class="status">next</span>
+              </div>
+            </div>
+          </div>
+          <div class="logo-track compact">
+            <div class="logo-card">
+              <span class="logo-mark nimble"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-nimble"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">Nimble</span>
+                <span class="node-p">PDP + variant data</span>
+              </span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="logo-card">
+              <span class="logo-mark pricepilot"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-verify"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">Verify + Rank</span>
+                <span class="node-p">reject near misses</span>
+              </span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="logo-card">
+              <span class="logo-mark clickhouse"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-clickhouse"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">ClickHouse</span>
+                <span class="node-p">price_events memory</span>
+              </span>
+            </div>
+            <span class="arch-arrow">&rarr;</span>
+            <div class="logo-card dark">
+              <span class="logo-mark senso"><svg class="mark-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><use href="#mark-senso"></use></svg></span>
+              <span class="logo-copy">
+                <span class="node-h">Senso Reports</span>
+                <span class="node-p">history + cited proof</span>
+              </span>
+            </div>
+          </div>
+          <div class="receipt-json"><strong>Receipt JSON:</strong> best offer, all offers, missing sources, product_id, and observation IDs return to Hermes for the final Telegram answer.</div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">Paid service endpoint <span class="num">[powered by x402 / MPP]</span></p>
+        <div style="margin-bottom: 0.875rem; font-size: 0.6875rem; color: var(--ink-soft); display: flex; align-items: center; gap: 0.5rem;">
+          <span style="display: inline-block; width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: blink 1.6s infinite;"></span>
+          Live now — checking Amazon &amp; Walmart every request
+        </div>
+        <div class="endpoint-card">
+          <div class="corner tl"></div>
+          <div class="corner tr"></div>
+          <div class="corner bl"></div>
+          <div class="corner br"></div>
+          <div>
+            <span class="endpoint-method">POST</span>
+            <span class="endpoint-path">/find_cheapest</span>
+            <span class="price-stamp">$0.05</span>
+          </div>
+          <p class="endpoint-meta">Pass an explicit product spec — brand, model, variant attributes (color, size, storage). PricePilot returns the cheapest verified buyable offer plus a stable <code class="inline">product_id</code> your agent can reuse.</p>
+          <div class="retailers">
+            <span class="retail-badge live">Amazon &mdash; live</span>
+            <span class="retail-badge live">Walmart &mdash; live</span>
+            <span class="retail-badge queue">Target &mdash; next</span>
+            <span class="retail-badge queue">eBay &mdash; next</span>
+            <span class="retail-badge queue">Facebook &mdash; next</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">What happens on a call <span class="num">[4 steps]</span></p>
+        <div style="margin-bottom: 1rem; padding: 0.625rem 0.875rem; background: rgba(197, 52, 30, 0.06); border-left: 3px solid var(--stamp); font-size: 0.75rem; color: var(--ink-soft); line-height: 1.6;">
+          <strong style="color: var(--ink); font-weight: 700;">Why this matters:</strong> Most price APIs return stale SERP estimates. PricePilot walks the full product tree to find the actual buyable offer — the one your agent can send someone to purchase.
+        </div>
+        <ul class="checklist">
+          <li>
+            <span class="num">01.</span>
+            <span class="what"><strong>You send a product spec.</strong> Brand, model, variant fields. No URLs to guess, no SKUs to look up.</span>
+          </li>
+          <li>
+            <span class="num">02.</span>
+            <span class="what"><strong>We resolve the exact variant on Amazon and Walmart.</strong> SERP &rarr; parent PDP &rarr; child PDP on each, in parallel, so the offers match your spec &mdash; not a near-miss.</span>
+          </li>
+          <li>
+            <span class="num">03.</span>
+            <span class="what"><strong>We pull the live offer.</strong> Real price, real stock, real seller from the PDP at request time. Not a cached SERP estimate.</span>
+          </li>
+          <li>
+            <span class="num">04.</span>
+            <span class="what"><strong>You get one JSON response.</strong> The cheapest verified offer plus a stable <code class="inline">product_id</code>.</span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">Sample receipt <span class="num">[POST /find_cheapest]</span></p>
+
+        <p style="font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem;">&mdash; Request &mdash;</p>
+<pre class="paper-pre">POST /find_cheapest
+{
+  "brand": "Nike",
+  "model": "Killshot 2",
+  "color": "Sail/Lucid Green",
+  "size": { "system": "US", "gender": "men", "value": 11.5 },
+  "condition": "new",
+  "postal_code": "10001"
+}</pre>
+
+        <p style="font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-top: 1.25rem; margin-bottom: 0.5rem;">&mdash; Response &mdash;</p>
+
+        <div class="totals">
+          <div class="line-row total-row">
+            <span class="label">PRODUCT</span>
+            <span class="leader"></span>
+            <span class="val">Nike Killshot 2</span>
+          </div>
+          <div class="line-row total-row">
+            <span class="label">VARIANT</span>
+            <span class="leader"></span>
+            <span class="val">Sail/Lucid &middot; M 11.5</span>
+          </div>
+          <div class="line-row total-row">
+            <span class="label">AMAZON</span>
+            <span class="leader"></span>
+            <span class="val" style="text-decoration: line-through; color: var(--muted); font-weight: 400;">$94.99</span>
+          </div>
+          <div class="line-row total-row">
+            <span class="label">WALMART</span>
+            <span class="leader"></span>
+            <span class="val green">$89.97 ★</span>
+          </div>
+          <div class="line-row total-row">
+            <span class="label">STOCK</span>
+            <span class="leader"></span>
+            <span class="val green">In stock</span>
+          </div>
+          <div class="line-row total-row grand">
+            <span class="label">CHEAPEST</span>
+            <span class="leader"></span>
+            <span class="val">$89.97</span>
+          </div>
+          <div style="padding-top: 0.375rem; margin-top: 0.375rem; border-top: 1px dashed var(--line-soft); font-size: 0.6875rem; color: var(--green); font-weight: 600; text-align: right;">
+            YOU SAVED: <span style="text-decoration: line-through; color: var(--muted); font-weight: 400; margin-left: 0.5rem;">$119.00</span> <span style="margin-left: 0.25rem;">→ $29.03</span>
+          </div>
+        </div>
+
+        <div style="text-align: center; margin: 1rem 0; position: relative;">
+          <span class="verified-stamp">Verified &middot; 2026-05-23</span>
+          <div style="position: absolute; right: -8px; top: 20px; font-size: 0.6875rem; color: var(--muted); transform: rotate(2deg); font-family: 'IBM Plex Serif', Georgia, serif; font-style: italic;">
+            ★★★★★ real price
+          </div>
+        </div>
+
+        <p style="font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; margin-top: 1rem;">&mdash; Raw JSON &mdash;</p>
+<pre>{
+  "product_id": "nike-killshot-2",
+  "best": {
+    "source": "walmart",
+    "price": 89.97,
+    "currency": "USD",
+    "in_stock": true,
+    "seller": "Walmart",
+    "url": "https://www.walmart.com/ip/XXXXXXXX",
+    "variant": { "color": "Sail/Lucid Green", "size": "11.5" }
+  },
+  "all_offers": [
+    { "source": "walmart", "price": 89.97, "in_stock": true },
+    { "source": "amazon",  "price": 94.99, "in_stock": true }
+  ],
+  "missing_sources": ["target"],
+  "checked_at": "2026-05-23T15:42:11Z"
+}</pre>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">Make your first call <span class="num">[3 steps]</span></p>
+
+        <ul class="checklist">
+          <li>
+            <span class="num">01.</span>
+            <span class="what"><strong>Pick a wallet your agent can pay from.</strong> AgentCash is fastest &mdash; ships USDC and signs payments. Or use Base / Tempo directly.</span>
+          </li>
+          <li>
+            <span class="num">02.</span>
+            <span class="what"><strong>POST a product spec to <code class="inline">/find_cheapest</code>.</strong> First request gets a 402 with the price ($0.05). Re-send with the payment header to receive the offer.</span>
+          </li>
+          <li>
+            <span class="num">03.</span>
+            <span class="what"><strong>Read the cheapest offer.</strong> The <code class="inline">best</code> field is the verified buyable result. Hand it to your shopper, log it, or check again tomorrow.</span>
+          </li>
+        </ul>
+
+<pre style="margin-top: 0.875rem;">$ curl -X POST https://pricepilot-sepia.vercel.app/find_cheapest \
+    -H "Content-Type: application/json" \
+    -d '{"brand":"Nike","model":"Killshot 2",
+        "size":{"system":"US","gender":"men","value":11.5}}'</pre>
+
+        <p class="sec-h" style="margin-top: 1.5rem;">How to pay <span class="num">[3 options]</span></p>
+
+        <div class="ticket-tabs">
+          <button class="ticket-tab active" data-tab="agentcash">AgentCash</button>
+          <button class="ticket-tab" data-tab="x402">x402 &middot; Base</button>
+          <button class="ticket-tab" data-tab="mpp">MPP &middot; Tempo</button>
+        </div>
+
+        <div class="tab-content active" id="agentcash">
+          <p class="body-copy" style="margin-bottom: 0.5rem;">Onboard once &mdash; wallet, USDC, payment signing all handled. Then try a real paid call.</p>
+<pre>$ npx agentcash onboard
+$ npx agentcash try https://pricepilot-sepia.vercel.app/find_cheapest</pre>
+        </div>
+
+        <div class="tab-content" id="x402">
+          <p class="body-copy" style="margin-bottom: 0.5rem;">Wrap fetch with x402-fetch. Any Base wallet your agent can sign with works.</p>
+<pre>import { withPaymentInterceptor } from 'x402-fetch'
+const fetchWithPay = withPaymentInterceptor(fetch, account)
+await fetchWithPay('https://pricepilot-sepia.vercel.app/find_cheapest', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(spec),
+})</pre>
+        </div>
+
+        <div class="tab-content" id="mpp">
+          <p class="body-copy" style="margin-bottom: 0.5rem;">Configure mppx with a Tempo wallet &mdash; Privy server wallets work fine.</p>
+<pre>import { Mppx, tempo } from 'mppx/client'
+Mppx.create({ methods: [tempo({ account: tempoWallet })] })
+await fetch('https://pricepilot-sepia.vercel.app/find_cheapest', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(spec),
+})</pre>
+        </div>
+      </section>
+
+      <section class="sec">
+        <p class="sec-h">Resources</p>
+        <ul class="file-list">
+          <li><span class="file-tag">OpenAPI</span><a href="/openapi.json">/openapi.json</a></li>
+          <li><span class="file-tag">Skill</span><a href="/skill.md">/skill.md</a></li>
+          <li><span class="file-tag">LLMs</span><a href="/llms.txt">/llms.txt</a></li>
+          <li><span class="file-tag">Source</span><a href="https://github.com/mmurrs/agenticenghack">github.com/mmurrs/agenticenghack</a></li>
+          <li><span class="file-tag">x402</span><a href="https://x402scan.com">x402scan.com</a></li>
+          <li><span class="file-tag">MPP</span><a href="https://mppscan.com">mppscan.com</a></li>
+        </ul>
+      </section>
+
+      <div class="sponsors-rec">
+        Built with <strong>Nimble</strong> &middot; <strong>ClickHouse</strong> &middot; <strong>Senso.ai</strong>
+      </div>
+
+      <div style="text-align: center; padding: 1.25rem; border-top: 1px dashed var(--line); font-size: 0.6875rem; color: var(--ink-soft);">
+        <div style="font-family: 'IBM Plex Serif', Georgia, serif; font-style: italic; font-size: 0.875rem; color: var(--ink); margin-bottom: 0.5rem;">
+          "Best price. Real stock. No guessing."
+        </div>
+        <div style="color: var(--muted); font-size: 0.625rem; letter-spacing: 0.08em; text-transform: uppercase;">
+          — your agent, probably
+        </div>
+      </div>
+
+      <footer class="footer-receipt">
+        <div>&mdash; END OF RECEIPT &mdash;</div>
+        <div class="barcode">||| ||| | || ||||| | || ||| || | |||| || ||| |</div>
+        <div style="margin: 0.75rem 0 0.5rem; font-size: 0.6875rem; color: var(--muted);">
+          THANK YOU FOR SHOPPING SMART
+        </div>
+        <div>PricePilot &middot; Agentic Engineering Hack &middot; May 23, 2026</div>
+        <div class="links">
+          <a href="https://x402.org">x402</a>
+          <a href="https://mpp.dev">MPP</a>
+          <a href="https://agentcash.dev">AgentCash</a>
+        </div>
+      </footer>
+
+    </div>
+  </main>
+
+  <script>
+    document.querySelectorAll('.ticket-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const t = tab.dataset.tab;
+        document.querySelectorAll('.ticket-tab').forEach(x => x.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(t).classList.add('active');
+      });
+    });
+
+    function copyAsk(btn) {
+      const text = btn.parentElement.querySelector('.ask-text').textContent.trim();
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.classList.add('copied');
+        btn.textContent = '✓ ok';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.textContent = orig;
+        }, 1400);
+      });
+    }
+  </script>
+</body>
+</html>

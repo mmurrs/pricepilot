@@ -1,0 +1,14 @@
+{
+  "name": "pricepilot",
+  "version": "1.0.0",
+  "description": "Pay-per-call price agent. Cheapest verified Amazon/Walmart offer via x402 or MPP.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "mppx": "^0.4.11"
+  }
+}
