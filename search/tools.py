@@ -2141,42 +2141,54 @@ def _persist_flight_observation(spec: FlightSpec, offer: Offer) -> str:
     except ModuleNotFoundError:
         return f"local:{observation_id}"
 
-    client = clickhouse_connect.get_client(
-        host=os.environ["CLICKHOUSE_HOST"],
-        port=int(os.environ.get("CLICKHOUSE_PORT", "8443")),
-        username=os.environ.get("CLICKHOUSE_USER", "nimble_loader"),
-        password=os.environ["CLICKHOUSE_PASSWORD"],
-        database="pricepilot",
-        secure=True,
-    )
-    client.insert(
-        "pricepilot.flight_events",
-        [
+    # The Date column needs a real datetime.date — the driver can't coerce
+    # 'YYYY-MM-DD' strings.
+    depart_date_obj = datetime.strptime(spec.depart_date, "%Y-%m-%d").date()
+
+    try:
+        client = clickhouse_connect.get_client(
+            host=os.environ["CLICKHOUSE_HOST"],
+            port=int(os.environ.get("CLICKHOUSE_PORT", "8443")),
+            username=os.environ.get("CLICKHOUSE_USER", "nimble_loader"),
+            password=os.environ["CLICKHOUSE_PASSWORD"],
+            database="pricepilot",
+            secure=True,
+        )
+        client.insert(
+            "pricepilot.flight_events",
             [
-                spec.user_id or "",
-                spec.flight_id,
-                spec.origin,
-                spec.destination,
-                spec.depart_date,
-                offer.url,
-                offer.source,
-                _offer_total(offer),
-                offer.currency,
-            ]
-        ],
-        column_names=[
-            "user_id",
-            "flight_id",
-            "origin",
-            "destination",
-            "depart_date",
-            "url",
-            "source",
-            "price",
-            "currency",
-        ],
-    )
-    return observation_id
+                [
+                    spec.user_id or "",
+                    spec.flight_id,
+                    spec.origin,
+                    spec.destination,
+                    depart_date_obj,
+                    offer.url,
+                    offer.source,
+                    _offer_total(offer),
+                    offer.currency,
+                ]
+            ],
+            column_names=[
+                "user_id",
+                "flight_id",
+                "origin",
+                "destination",
+                "depart_date",
+                "url",
+                "source",
+                "price",
+                "currency",
+            ],
+        )
+        return observation_id
+    except Exception as exc:
+        import sys
+        print(
+            f"flight_events insert skipped: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return f"local:{observation_id}"
 
 
 def track_flight(
