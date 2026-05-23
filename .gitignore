@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Claude Code local overrides (may contain secrets)
+.claude/settings.local.json
+
 # Node
 node_modules/
 dist/

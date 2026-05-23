@@ -1,0 +1,24 @@
+{
+  "name": "agenticenghack",
+  "version": "1.0.0",
+  "description": "> We've stacked real infra and real AI so your hack ships as a product, not a slide.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mmurrs/agenticenghack.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mmurrs/agenticenghack/issues"
+  },
+  "homepage": "https://github.com/mmurrs/agenticenghack#readme",
+  "devDependencies": {
+    "@senso-ai/cli": "^0.11.0"
+  }
+}
