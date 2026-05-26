@@ -110,6 +110,28 @@ Telegram shopper
   -> Telegram answer or price-drop alert
 ```
 
+## Hermes Agent Support
+
+Yes, PricePilot has the pieces needed to work with Hermes as a skill.
+
+For a hosted skill, Hermes can read:
+
+```text
+https://pricepilot-sepia.vercel.app/skill.md
+```
+
+That skill file describes when to use PricePilot, how to call `POST /find_cheapest`, what fields to send, how payment works, and how to format the response.
+
+For the original hackathon assistant, the repo also includes a local Hermes skill pack for best-price search, direct URL checks, product tracking, price history, and scheduled price alerts. That path is useful when Hermes is running the full Telegram assistant and can call local tools.
+
+What is still required is runtime configuration, not more product copy:
+
+- A Hermes runtime that can install or read the skill.
+- A payment-capable HTTP client for x402 or MPP if calling the hosted paid endpoint.
+- API credentials for the full local assistant flow: LLM, Telegram, retailer lookup, ClickHouse, and optional report generation.
+
+So the short answer is: **yes for the Hermes skill/plugin contract; the hosted endpoint is discoverable today, and the fuller assistant works when the required credentials and Hermes runtime are configured.**
+
 ## Live URLs
 
 - Product: https://pricepilot-sepia.vercel.app
